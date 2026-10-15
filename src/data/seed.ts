@@ -50,6 +50,7 @@ async function seed() {
   const kaelin = subj("Kaelin, E.", {
     aliases: ["E. Kaelin", "J. Varek", "Elias Kane"],
     lastSeen: { place: "New Seattle, P.N.W.", detail: "Sector 7 / Perimeter 12", at: new Date(2025, 3, 17, 23, 47).getTime() },
+    coordinates: { lat: 47.6062, lng: -122.3321 },
     fields: [{ key: "CITIZEN ID", value: "PNW-4471-0093-KE" }],
     redacted: ["alias:1", "field:CITIZEN ID"],
   });

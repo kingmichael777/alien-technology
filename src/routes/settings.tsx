@@ -212,6 +212,7 @@ function Settings() {
             <button className="btn btn-danger w-full" onClick={() => setConfirm("erase")}>Erase vault</button>
           </div>
         </section>
+        <p className="px-1 text-[13px] leading-relaxed text-ink-muted">Map tiles load from OpenFreeMap. Only the map area you view is requested; your notes are never sent.</p>
         <p className="pb-4 text-center font-mono text-[10.5px] tracking-[0.12em] text-ink-faint">ALIEN TECHNOLOGY · PRIVATE INVESTIGATOR NOTES</p>
       </div>
 

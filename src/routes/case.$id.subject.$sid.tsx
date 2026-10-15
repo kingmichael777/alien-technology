@@ -1,14 +1,16 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-import { AlertTriangle, Camera, ChevronDown, ChevronRight, ChevronUp, EyeOff, FileText, ImageUp, Link2, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Camera, ChevronDown, ChevronRight, ChevronUp, EyeOff, FileText, ImageUp, Link2, MapPin, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useBlobUrl, useCase, useEntityLinks, useSubject, useSubjectNotes } from "@/data/hooks";
 import type { SubjectRec, Threat } from "@/data/db";
 import { subjectRepo } from "@/data/repo";
 import { BackLink, ConfirmSheet, IconButton, PageHeader, Redact, Sheet, SheetRow, ShieldLink, Silhouette, SW, ThreatDot } from "@/components/at/ui";
 import { LinkPickerSheet, MiniWave, UnlinkButton } from "@/components/at/notes";
+import { parseCoordinate, parseCoordinatePair } from "@/components/map/model";
 import { clock, compact, compactDate, toLocalInput } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useMapFocus } from "@/store/map";
 
 export const Route = createFileRoute("/case/$id/subject/$sid")({
   validateSearch: (s: Record<string, unknown>): { edit?: boolean | undefined } => ({ edit: s["edit"] === true || s["edit"] === "true" ? true : undefined }),
@@ -127,11 +129,22 @@ function DossierView({ s, readOnly }: { s: SubjectRec; readOnly: boolean }) {
             )}
           </Field>
           <Field label="Last seen location">
-            {!s.lastSeen.place && !s.lastSeen.detail && !s.lastSeen.at ? <span className="text-ink-faint">Unknown</span> : (
+            {!s.lastSeen.place && !s.lastSeen.detail && !s.lastSeen.at && !s.coordinates ? <span className="text-ink-faint">Unknown</span> : (
               <>
                 {s.lastSeen.place && <div><Redact text={s.lastSeen.place} redacted={r("lastSeen.place")} /></div>}
                 {s.lastSeen.detail && <div><Redact text={s.lastSeen.detail} redacted={r("lastSeen.detail")} /></div>}
                 {s.lastSeen.at && <div className="text-ink-muted">{compactDate(s.lastSeen.at)} / {clock(s.lastSeen.at)}</div>}
+                {s.coordinates && (
+                  <Link
+                    to="/case/$id"
+                    params={{ id: s.caseId }}
+                    search={{ tab: "map" }}
+                    onClick={() => useMapFocus.getState().focusOn({ caseId: s.caseId, kind: "subject", id: s.id })}
+                    className="-my-2 flex min-h-11 w-fit items-center gap-1.5 font-mono text-[12px] uppercase tracking-[0.1em] text-amber"
+                  >
+                    <MapPin size={15} strokeWidth={SW} /> Map
+                  </Link>
+                )}
               </>
             )}
           </Field>
@@ -242,6 +255,8 @@ function DossierEdit({ s, onDone }: { s: SubjectRec; onDone: () => void }) {
   const [place, setPlace] = useState<Row>({ value: s.lastSeen.place, redacted: s.redacted.includes("lastSeen.place") });
   const [detail, setDetail] = useState<Row>({ value: s.lastSeen.detail, redacted: s.redacted.includes("lastSeen.detail") });
   const [seenAt, setSeenAt] = useState(toLocalInput(s.lastSeen.at));
+  const [lat, setLat] = useState(s.coordinates ? String(s.coordinates.lat) : "");
+  const [lng, setLng] = useState(s.coordinates ? String(s.coordinates.lng) : "");
   const [fields, setFields] = useState<(Row & { key: string })[]>(s.fields.map((f) => ({ key: f.key, value: f.value, redacted: s.redacted.includes(`field:${f.key}`) })));
   const [threat, setThreat] = useState<Threat>(s.threatLevel);
   const cam = useRef<HTMLInputElement>(null);
@@ -263,6 +278,16 @@ function DossierEdit({ s, onDone }: { s: SubjectRec; onDone: () => void }) {
       }
       keys.add(k);
     }
+    let coordinates: SubjectRec["coordinates"] = null;
+    if (lat.trim() || lng.trim()) {
+      const la = parseCoordinate(lat, "lat");
+      const lo = parseCoordinate(lng, "lng");
+      if (la === null || lo === null) {
+        toast.error("Enter a latitude from -90 to 90 and a longitude from -180 to 180.");
+        return;
+      }
+      coordinates = { lat: la, lng: lo };
+    }
     const redacted = [
       ...cleanAliases.flatMap((a, i) => (a.redacted ? [`alias:${i}`] : [])),
       ...cleanFields.flatMap((f) => (f.redacted ? [`field:${f.key.trim().toUpperCase()}`] : [])),
@@ -274,6 +299,7 @@ function DossierEdit({ s, onDone }: { s: SubjectRec; onDone: () => void }) {
         name: name.trim(),
         aliases: cleanAliases.map((a) => a.value.trim()),
         lastSeen: { place: place.value.trim(), detail: detail.value.trim(), at: seenAt ? new Date(seenAt).getTime() : null },
+        coordinates,
         fields: cleanFields.map((f) => ({ key: f.key.trim().toUpperCase(), value: f.value.trim() })),
         threatLevel: threat,
         redacted,
@@ -317,6 +343,30 @@ function DossierEdit({ s, onDone }: { s: SubjectRec; onDone: () => void }) {
         <RowEdit row={place} placeholder="Place, e.g. New Seattle, P.N.W." onChange={setPlace} />
         <RowEdit row={detail} placeholder="Detail, e.g. Sector 7 / Perimeter 12" onChange={setDetail} />
         <input type="datetime-local" className="field font-mono text-[13px]" value={seenAt} onChange={(e) => setSeenAt(e.target.value)} aria-label="Last seen time" />
+        <div className="grid grid-cols-2 gap-2">
+          {([["Latitude", lat, setLat], ["Longitude", lng, setLng]] as const).map(([label, value, set]) => (
+            <input
+              key={label}
+              className="field font-mono text-[13px]"
+              placeholder={label}
+              aria-label={label}
+              autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              value={value}
+              onChange={(e) => set(e.target.value)}
+              onPaste={(e) => {
+                const pair = parseCoordinatePair(e.clipboardData.getData("text"));
+                if (!pair) return;
+                e.preventDefault();
+                setLat(String(pair.lat));
+                setLng(String(pair.lng));
+              }}
+            />
+          ))}
+        </div>
+        <p className="font-mono text-[11px] leading-relaxed text-ink-faint">Decimal degrees, e.g. 47.6062 and -122.3321. Pasting a pair fills both.</p>
       </EditGroup>
 
       <EditGroup label="Fields">
