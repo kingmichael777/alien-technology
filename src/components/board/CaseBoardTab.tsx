@@ -37,9 +37,10 @@ export function CaseBoardTab({ c }: { c: CaseRec }) {
 
 /**
  * The board's box: the full column width (out of the tab's px-4 pt-4 padding) and the full height
- * below the sticky case header. The bottom margin cancels the shell's pb-28 so the page never scrolls
- * under the board; the capsule nav bar floats over the canvas instead.
+ * below the sticky case header. The bottom margin cancels the shell's bottom padding (AppShell
+ * CLEAR_CAPSULE) so the page never scrolls under the board; the capsule nav bar floats over the canvas.
  */
+const CANCEL_SHELL_PADDING = "calc(-1 * (60px + max(env(safe-area-inset-bottom), 14px) + 24px))";
 function BoardSlot({ status, children }: { status: CaseRec["status"]; children?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [top, setTop] = useState(0);
@@ -53,7 +54,7 @@ function BoardSlot({ status, children }: { status: CaseRec["status"]; children?:
     return () => window.removeEventListener("resize", measure);
   }, [status]);
   return (
-    <div ref={ref} className="relative -mx-4 -mt-4 -mb-28 overflow-hidden" style={{ height: `calc(100dvh - ${top}px)` }}>
+    <div ref={ref} className="relative -mx-4 -mt-4 overflow-hidden" style={{ height: `calc(100dvh - ${top}px)`, marginBottom: CANCEL_SHELL_PADDING }}>
       {children}
     </div>
   );

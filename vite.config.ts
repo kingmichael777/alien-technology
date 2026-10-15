@@ -6,6 +6,8 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  // MapLibre is one lazy chunk loaded only by the Map tab.
+  build: { chunkSizeWarningLimit: 1200 },
   plugins: [
     tanstackRouter({ target: "react", autoCodeSplitting: true }),
     react(),

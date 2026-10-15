@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AudioWaveform, MoreHorizontal, Plus, Lock, SlidersHorizontal, X } from "lucide-react";
 import { toast } from "sonner";
 import { useBlobUrl, useCase, useCaseNotes, useEvidenceList, useSubjects } from "@/data/hooks";
@@ -58,23 +58,7 @@ function CaseScreen() {
             </IconButton>
           </div>
         }
-        sub={
-          <div className="no-scrollbar flex gap-6 overflow-x-auto px-5">
-            {TABS.map((t) => (
-              <Link
-                key={t}
-                to="/case/$id"
-                params={{ id }}
-                search={{ tab: t }}
-                replace
-                className={cn("relative flex h-11 shrink-0 items-center font-mono text-[12px] uppercase tracking-[0.12em] transition-colors", tab === t ? "text-amber" : "text-ink-muted")}
-              >
-                {t}
-                {tab === t && <span className="absolute inset-x-0 bottom-0 h-px bg-amber" />}
-              </Link>
-            ))}
-          </div>
-        }
+        sub={<TabStrip id={id} tab={tab} />}
       />
       {readOnly && <ReadOnlyBanner c={c} />}
       <div className="px-4 pt-4">
@@ -86,6 +70,36 @@ function CaseScreen() {
         {tab === "board" && <CaseBoardTab c={c} />}
       </div>
       <CaseActionsSheet c={c} open={menu} onClose={() => setMenu(false)} onDeleted={() => navigate({ to: "/" })} />
+    </div>
+  );
+}
+
+/** Case tabs. The active tab is scrolled into view, so MAP and BOARD are visible when opened directly. */
+function TabStrip({ id, tab }: { id: string; tab: Tab }) {
+  const strip = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const box = strip.current;
+    const active = box?.querySelector<HTMLElement>('[data-active="true"]');
+    if (!box || !active) return;
+    const left = active.offsetLeft - (box.clientWidth - active.offsetWidth) / 2;
+    box.scrollTo({ left: Math.max(0, left), behavior: "auto" });
+  }, [tab]);
+  return (
+    <div ref={strip} className="no-scrollbar flex gap-6 overflow-x-auto px-5">
+      {TABS.map((t) => (
+        <Link
+          key={t}
+          to="/case/$id"
+          params={{ id }}
+          search={{ tab: t }}
+          replace
+          data-active={tab === t}
+          className={cn("relative flex h-11 shrink-0 items-center font-mono text-[12px] uppercase tracking-[0.12em] transition-colors", tab === t ? "text-amber" : "text-ink-muted")}
+        >
+          {t}
+          {tab === t && <span className="absolute inset-x-0 bottom-0 h-px bg-amber" />}
+        </Link>
+      ))}
     </div>
   );
 }
