@@ -1,0 +1,211 @@
+/*
+ * Case map. Loaded with MapLibre, after its stylesheet, and scoped to the map container.
+ * Colors are theme tokens only, so night vision and high contrast restyle the map chrome too.
+ */
+
+.at-map {
+  /* Height the floating capsule nav covers at the bottom of the screen (CapsuleBar) */
+  --at-nav-clear: calc(60px + max(env(safe-area-inset-bottom), 14px));
+  background: var(--bg);
+}
+
+/* Night vision: the basemap takes the same green filter as photographs. */
+.at-map .maplibregl-canvas {
+  filter: var(--photo-filter);
+}
+.at-map .maplibregl-canvas:focus {
+  outline: none;
+}
+.at-map .maplibregl-canvas:focus-visible {
+  outline: 1px solid var(--amber-line);
+  outline-offset: -1px;
+}
+
+/* Control corners: clear of the nav capsule below and of Locate me at the top right. */
+.at-map .maplibregl-ctrl-bottom-left,
+.at-map .maplibregl-ctrl-bottom-right {
+  bottom: calc(var(--at-nav-clear) + 8px);
+}
+.at-map .maplibregl-ctrl-top-right {
+  top: 56px;
+}
+.at-map .maplibregl-ctrl-top-right .maplibregl-ctrl {
+  margin: 8px 12px 0 0;
+}
+.at-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+  margin: 0 12px 0 0;
+}
+.at-map .maplibregl-ctrl-bottom-left .maplibregl-ctrl {
+  margin: 0 0 0 12px;
+}
+
+/* Zoom buttons: a slim capsule in the app's surface tone, 44 px targets. */
+.at-map .maplibregl-ctrl-group {
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.at-map .maplibregl-ctrl-group:not(:empty) {
+  box-shadow: none;
+}
+.at-map .maplibregl-ctrl-group button {
+  width: 44px;
+  height: 44px;
+}
+.at-map .maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--line);
+}
+.at-map .maplibregl-ctrl button:not(:disabled):hover,
+.at-map .maplibregl-ctrl button:not(:disabled):active {
+  background-color: var(--surface-raised);
+}
+.at-map .maplibregl-ctrl-group button:focus,
+.at-map .maplibregl-ctrl-group button:focus:focus-visible {
+  box-shadow: none;
+}
+.at-map .maplibregl-ctrl-group button:focus-visible {
+  outline: 1px solid var(--amber);
+  outline-offset: -2px;
+}
+.at-map .maplibregl-ctrl button.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon,
+.at-map .maplibregl-ctrl button.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon {
+  background-image: none;
+  background-color: var(--text-muted);
+  -webkit-mask: var(--at-icon) center / 20px 20px no-repeat;
+  mask: var(--at-icon) center / 20px 20px no-repeat;
+  transition: background-color 160ms ease-out;
+}
+.at-map .maplibregl-ctrl button.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon {
+  --at-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M5 12h14M12 5v14'/%3E%3C/svg%3E");
+}
+.at-map .maplibregl-ctrl button.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon {
+  --at-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M5 12h14'/%3E%3C/svg%3E");
+}
+.at-map .maplibregl-ctrl button:not(:disabled):active .maplibregl-ctrl-icon {
+  background-color: var(--amber);
+}
+
+/* Attribution: always shown, one compact mono line. */
+.at-map .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  color: var(--text-faint);
+  font: 400 9.5px/15px var(--font-mono);
+  letter-spacing: 0.02em;
+}
+.at-map .maplibregl-ctrl-attrib a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.at-map .maplibregl-ctrl-attrib a:hover,
+.at-map .maplibregl-ctrl-attrib a:focus-visible {
+  color: var(--amber);
+  text-decoration: none;
+  outline: none;
+}
+
+/* ---------- Markers ---------- */
+
+.at-marker {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--amber);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.at-marker--pin {
+  z-index: 2;
+}
+.at-marker--ring {
+  z-index: 1;
+  align-items: center;
+}
+.at-marker:focus {
+  outline: none;
+}
+.at-marker:focus-visible {
+  outline: 1px solid var(--amber);
+  outline-offset: -1px;
+}
+
+.at-pin {
+  display: block;
+  width: 26px;
+  height: 35px;
+  overflow: visible;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.7));
+  transition: transform 160ms ease-out;
+  transform-origin: 50% 100%;
+}
+.at-marker:active .at-pin {
+  transform: scale(1.08);
+}
+.at-pin-body {
+  fill: var(--amber);
+  stroke: rgb(0 0 0 / 0.45);
+  stroke-width: 1;
+}
+.at-pin-mark {
+  fill: var(--bg);
+}
+
+/* Subject: a hollow ring, 2 px amber, open center. */
+.at-ring {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--amber);
+  border-radius: 9999px;
+  background: transparent;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.5),
+    inset 0 0 0 1px rgb(0 0 0 / 0.5);
+}
+
+/* Count of records grouped under one marker */
+.at-badge {
+  position: absolute;
+  top: 2px;
+  left: 26px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border: 1px solid var(--amber);
+  border-radius: 9999px;
+  background: var(--bg);
+  color: var(--amber);
+  font: 500 10px/16px var(--font-mono);
+  text-align: center;
+  pointer-events: none;
+}
+.at-marker--ring .at-badge {
+  top: 4px;
+  left: 28px;
+}
+
+/* Device position from Locate me */
+.at-device {
+  z-index: 3;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--bg);
+  border-radius: 9999px;
+  background: var(--amber);
+  box-shadow:
+    0 0 0 5px var(--amber-fill),
+    0 0 0 6px var(--amber-line);
+  pointer-events: none;
+}
