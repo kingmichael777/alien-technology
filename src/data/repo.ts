@@ -17,7 +17,8 @@ async function touch(caseId: string) {
   await db.cases.update(caseId, { lastActivityAt: Date.now() });
 }
 
-async function assertWritable(caseId: string) {
+/** Throws unless the case exists and is Active. Every write goes through this. */
+export async function assertWritable(caseId: string) {
   const c = await db.cases.get(caseId);
   if (!c) throw new Error("Case not found.");
   if (c.status !== "active") throw new Error("This case is not active. Reopen it to make changes.");
@@ -198,6 +199,13 @@ export const linkRepo = {
     await db.links.add({ id, caseId, fromId: from.id, fromKind: from.kind, toId: to.id, toKind: to.kind, label: label.trim(), createdAt: Date.now() });
     await touch(caseId);
     return id;
+  },
+  async update(id: string, label: string) {
+    const l = await db.links.get(id);
+    if (!l) return;
+    await assertWritable(l.caseId);
+    await db.links.update(id, { label: label.trim() });
+    await touch(l.caseId);
   },
   async remove(id: string) {
     const l = await db.links.get(id);

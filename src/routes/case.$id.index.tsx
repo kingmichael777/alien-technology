@@ -7,6 +7,8 @@ import { caseRepo, subjectRepo } from "@/data/repo";
 import { BackLink, EmptyState, IconButton, PageHeader, QuietState, Silhouette, StatusPill, SW, ThreatDot } from "@/components/at/ui";
 import { CaseActionsSheet } from "@/components/at/CaseSheets";
 import { NoteRow } from "@/components/at/notes";
+import { CaseBoardTab } from "@/components/board/CaseBoardTab";
+import { CaseMapTab } from "@/components/map/CaseMapTab";
 import { compact, dayHeader } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -76,8 +78,8 @@ function CaseScreen() {
         {tab === "subjects" && <SubjectsTab c={c} />}
         {tab === "notes" && <NotesTab c={c} />}
         {tab === "evidence" && <EvidenceTab caseId={id} />}
-        {tab === "map" && <QuietState label="Map" />}
-        {tab === "board" && <QuietState label="Evidence board" />}
+        {tab === "map" && <CaseMapTab c={c} />}
+        {tab === "board" && <CaseBoardTab c={c} />}
       </div>
       <CaseActionsSheet c={c} open={menu} onClose={() => setMenu(false)} onDeleted={() => navigate({ to: "/" })} />
     </div>

@@ -29,6 +29,10 @@ export const useEvidence = (id: string) => useLiveQuery(async () => (await db.ev
 
 export const useNoteEvidence = (noteId: string) => useLiveQuery(() => db.evidence.where("noteId").equals(noteId).toArray(), [noteId]);
 
+/** Every link (red string) in a case, oldest first. */
+export const useCaseLinks = (caseId: string) =>
+  useLiveQuery(async () => (await db.links.where("caseId").equals(caseId).toArray()).sort((a, b) => a.createdAt - b.createdAt), [caseId]);
+
 export interface ResolvedLink {
   linkId: string;
   label: string;
