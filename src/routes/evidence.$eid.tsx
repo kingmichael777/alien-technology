@@ -2,9 +2,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Copy, ShieldCheck, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
-import { useBlobUrl, useEvidence } from "@/data/hooks";
-import { evidenceRepo } from "@/data/repo";
+import { useBlobUrl, useCase, useEvidence } from "@/data/hooks";
+import { evidenceRepo, sha256Hex } from "@/data/repo";
+import { isEncrypted } from "@/data/seal";
+import { useUnlocked } from "@/store/unlocked";
 import { BackLink, MonoField, PageHeader, SW } from "@/components/at/ui";
+import { SealedEvidence } from "@/components/seal/SealedEvidence";
 import { bytes, compact, coords } from "@/lib/format";
 
 export const Route = createFileRoute("/evidence/$eid")({
@@ -24,6 +27,7 @@ export const Route = createFileRoute("/evidence/$eid")({
 function EvidenceDetail() {
   const { eid } = Route.useParams();
   const e = useEvidence(eid);
+  const c = useCase(e?.caseId);
   const url = useBlobUrl(e?.blobId);
   const [verdict, setVerdict] = useState<null | boolean>(null);
   const [checking, setChecking] = useState(false);
@@ -36,6 +40,16 @@ function EvidenceDetail() {
         <Link to="/" className="btn btn-outline mt-6">Return to the vault</Link>
       </div>
     );
+  // Still ciphertext: its case is encrypted and not open in memory.
+  if (e.enc) return <SealedEvidence caseId={e.caseId} codename={c?.codename} />;
+  const sealedOpen = isEncrypted(c);
+
+  /** An open sealed case is read only: the check runs on the decrypted bytes in memory and is not logged. */
+  const verify = async () => {
+    if (!sealedOpen) return evidenceRepo.verify(e.id);
+    const b = useUnlocked.getState().bundle?.blobs.get(e.blobId);
+    return !!b && (await sha256Hex(b)) === e.sha256;
+  };
 
   const copy = async () => {
     try {
@@ -85,7 +99,9 @@ function EvidenceDetail() {
             onClick={async () => {
               setChecking(true);
               try {
-                setVerdict(await evidenceRepo.verify(e.id));
+                setVerdict(await verify());
+              } catch (err) {
+                toast.error((err as Error).message);
               } finally {
                 setChecking(false);
               }
@@ -99,6 +115,7 @@ function EvidenceDetail() {
               {verdict ? "INTEGRITY VERIFIED" : "HASH MISMATCH"}
             </div>
           )}
+          {verdict !== null && sealedOpen && <p className="mt-2 text-center font-mono text-[10.5px] text-ink-faint">Sealed case. This check is not added to the chain of custody.</p>}
 
           <div className="section-label mt-7 mb-3">Chain of custody</div>
           <ol className="relative space-y-4 border-l border-amber-line pl-5">

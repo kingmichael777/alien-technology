@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Box } from "lucide-react";
-import { useCases } from "@/data/hooks";
+import { useCases, useSealSummary } from "@/data/hooks";
 import type { CaseRec } from "@/data/db";
+import { isEncrypted } from "@/data/seal";
 import { Card, EmptyState, Hexagon, SectionLabel, ShieldLink, StatusPill, useLongPress } from "@/components/at/ui";
 import { CaseActionsSheet, CaseCardMeta } from "@/components/at/CaseSheets";
 import { useApp } from "@/store/app";
@@ -34,21 +35,27 @@ function CaseCard({ c, onActions }: { c: CaseRec; onActions: () => void }) {
         navigate({ to: "/case/$id", params: { id: c.id } });
       }}
       onKeyDown={(e) => e.key === "Enter" && navigate({ to: "/case/$id", params: { id: c.id } })}
-      className="anim-fade flex min-h-[84px] cursor-pointer select-none items-center gap-4 px-4 py-3.5 transition-colors active:bg-surface-raised"
+      className="anim-fade flex min-h-[84px] cursor-pointer select-none items-start gap-4 px-4 py-3.5 transition-colors active:bg-surface-raised"
       style={{ WebkitTouchCallout: "none" }}
     >
-      <Box size={34} strokeWidth={1.25} className="shrink-0 text-amber" />
+      <Box size={34} strokeWidth={1.25} className="mt-0.5 shrink-0 text-amber" />
       <div className="min-w-0 flex-1">
-        <div className="codename text-[16px] leading-snug text-ink">{c.codename}</div>
+        {/* The pill sits level with the first line of the codename; the codename wraps and is never cut. */}
+        <div className="flex items-start gap-3">
+          <div className="codename min-w-0 flex-1 pt-[3px] text-[16px] leading-snug break-words text-ink">{c.codename}</div>
+          <StatusPill status={c.status} encrypted={isEncrypted(c)} />
+        </div>
         <CaseCardMeta c={c} />
       </div>
-      <StatusPill status={c.status} />
     </Card>
   );
 }
 
 function Vault() {
   const cases = useCases();
+  const seal = useSealSummary();
+  // Literal: shown only while every sealed case holding records is encrypted.
+  const encryptedLine = !!seal && seal.encrypted > 0 && seal.readableInSealed === 0;
   const setNewCase = useApp((s) => s.setNewCaseOpen);
   const [sel, setSel] = useState<CaseRec | null>(null);
 
@@ -62,7 +69,15 @@ function Vault() {
         </div>
         <ShieldLink />
       </header>
-      <p className="mt-4 font-mono text-[11px] tracking-[0.12em] text-ink-muted">STORED ON THIS DEVICE ONLY</p>
+      <p className="mt-4 font-mono text-[11px] leading-relaxed tracking-[0.12em] text-ink-muted">
+        STORED ON THIS DEVICE ONLY
+        {encryptedLine && (
+          <>
+            {"\u00a0· "}
+            <span className="whitespace-nowrap">SEALED CASES ENCRYPTED</span>
+          </>
+        )}
+      </p>
 
       <div className="mt-8 mb-3 flex items-center justify-between">
         <SectionLabel>Sealed Case Vaults</SectionLabel>
