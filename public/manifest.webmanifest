@@ -1,0 +1,17 @@
+{
+  "name": "Alien Technology",
+  "short_name": "Alien Tech",
+  "description": "Private Investigator Notes. Stored on this device only.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0B0C",
+  "theme_color": "#0A0B0C",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

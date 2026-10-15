@@ -1,0 +1,324 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+@import "@fontsource/cormorant-garamond/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Alien Technology design system.
+ * Raw tokens live on :root and are swapped per display mode via html[data-mode].
+ * Shadcn variables alias the raw tokens so third-party pieces inherit the theme.
+ */
+
+@theme inline {
+  --font-serif: "Cormorant Garamond", "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--text);
+  --color-ink-muted: var(--text-muted);
+  --color-ink-faint: var(--text-faint);
+  --color-amber: var(--amber);
+  --color-amber-bright: var(--amber-bright);
+  --color-amber-line: var(--amber-line);
+  --color-amber-fill: var(--amber-fill);
+  --color-string: var(--string);
+  --color-pin: var(--pin);
+  --color-redact: var(--redact);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --radius: 14px;
+  --bg: #0a0b0c;
+  --surface: #121314;
+  --surface-raised: #17181a;
+  --line: #232427;
+  --line-strong: #2e3033;
+  --text: #eee9e3;
+  --text-muted: #8c8c8a;
+  --text-faint: #5c5d5f;
+  --amber: #e9a544;
+  --amber-bright: #f0ac41;
+  --amber-line: rgba(233, 165, 68, 0.35);
+  --amber-fill: rgba(233, 165, 68, 0.1);
+  --string: #b3362f;
+  --pin: #d0453b;
+  --redact: #000000;
+  --on-amber: #0a0b0c;
+  --photo-filter: none;
+
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--text);
+  --primary: var(--amber);
+  --primary-foreground: var(--on-amber);
+  --secondary: var(--surface-raised);
+  --secondary-foreground: var(--text);
+  --muted: var(--surface);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--surface-raised);
+  --accent-foreground: var(--text);
+  --destructive: var(--pin);
+  --destructive-foreground: var(--text);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--amber-line);
+}
+
+html[data-mode="contrast"] {
+  --bg: #000000;
+  --surface: #0a0a0a;
+  --surface-raised: #121212;
+  --line: #555555;
+  --line-strong: #777777;
+  --text: #ffffff;
+  --text-muted: #c4c4c4;
+  --text-faint: #9a9a9a;
+  --amber: #ffb547;
+  --amber-bright: #ffb547;
+  --amber-line: rgba(255, 181, 71, 0.65);
+  --amber-fill: rgba(255, 181, 71, 0.16);
+}
+
+html[data-mode="night"] {
+  --bg: #050a07;
+  --surface: #0b140e;
+  --surface-raised: #0f1b13;
+  --line: #16271c;
+  --line-strong: #203627;
+  --text: #b8f5c4;
+  --text-muted: #5e8f69;
+  --text-faint: #3e6148;
+  --amber: #7cfc9a;
+  --amber-bright: #7cfc9a;
+  --amber-line: rgba(124, 252, 154, 0.35);
+  --amber-fill: rgba(124, 252, 154, 0.1);
+  --string: #3f8f55;
+  --pin: #7cfc9a;
+  --on-amber: #050a07;
+  --photo-filter: grayscale(1) sepia(1) hue-rotate(75deg) saturate(2.4) brightness(0.85);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+  html,
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: var(--amber-fill);
+  }
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+}
+
+html[data-grain="on"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@utility section-label {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--amber);
+}
+
+@utility mono-label {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--amber);
+}
+
+@utility codename {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+@utility card-at {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+@utility photo {
+  filter: var(--photo-filter);
+}
+
+@utility tap {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+@utility pt-safe {
+  padding-top: max(env(safe-area-inset-top), 12px);
+}
+
+@utility pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 16px);
+}
+
+@utility field {
+  width: 100%;
+  min-height: 44px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--text);
+  outline: none;
+  transition: border-color 160ms ease-out;
+  &::placeholder {
+    color: var(--text-faint);
+  }
+  &:focus {
+    border-color: var(--amber-line);
+  }
+}
+
+@utility btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 14px;
+  border: 1px solid transparent;
+  transition:
+    background-color 160ms ease-out,
+    opacity 160ms ease-out;
+  &:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+}
+
+@utility btn-primary {
+  background: var(--amber);
+  color: var(--on-amber);
+  &:active {
+    background: var(--amber-bright);
+  }
+}
+
+@utility btn-outline {
+  background: var(--amber-fill);
+  color: var(--amber);
+  border-color: var(--amber-line);
+}
+
+@utility btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+@utility btn-danger {
+  background: transparent;
+  color: var(--pin);
+  border-color: color-mix(in oklab, var(--pin) 50%, transparent);
+}
+
+@keyframes at-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes at-slide-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@utility anim-fade {
+  animation: at-fade 180ms ease-out both;
+}
+@utility anim-slide-up {
+  animation: at-slide-up 220ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
