@@ -5,10 +5,14 @@ import { ensureSeeded } from "@/data/seed";
 import { useSetting } from "@/data/hooks";
 import { settingsRepo } from "@/data/repo";
 import { registerServiceWorker } from "@/lib/pwa";
+import { useUnlockGuard } from "@/components/seal/useUnlockGuard";
 import { CapsuleBar } from "./CapsuleBar";
 import { NewCaseSheet, PlusSheet } from "./CaseSheets";
 
 export type DisplayMode = "standard" | "contrast" | "night";
+
+/** Capsule bar height, its lift off the bottom edge, and 24px of air: the last row of any screen clears the bar. */
+const CLEAR_CAPSULE = "calc(60px + max(env(safe-area-inset-bottom), 14px) + 24px)";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -16,6 +20,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const grain = useSetting<boolean>("grain", true);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const capture = pathname.startsWith("/capture");
+  useUnlockGuard();
 
   useEffect(() => {
     ensureSeeded().finally(() => setReady(true));
@@ -35,7 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="mx-auto min-h-dvh w-full max-w-[480px] bg-bg">
-      {ready ? <div className={capture ? "" : "pb-28"}>{children}</div> : <div className="min-h-dvh" />}
+      {ready ? <div style={capture ? undefined : { paddingBottom: CLEAR_CAPSULE }}>{children}</div> : <div className="min-h-dvh" />}
       {ready && !capture && <CapsuleBar />}
       <PlusSheet />
       <NewCaseSheet />

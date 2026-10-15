@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronLeft, ShieldHalf } from "lucide-react";
+import { ChevronLeft, Lock, ShieldHalf } from "lucide-react";
 import type { CaseStatus, Threat } from "@/data/db";
 import { useOnline } from "@/data/hooks";
 import { cn } from "@/lib/utils";
@@ -33,13 +33,28 @@ const pill: Record<CaseStatus, string> = {
   archived: "text-ink-muted border-line",
 };
 
-export function StatusPill({ status, className }: { status: CaseStatus; className?: string }) {
+/** `encrypted` puts a small lock in a SEALED pill, in place of its dot. */
+export function StatusPill({ status, encrypted, className }: { status: CaseStatus; encrypted?: boolean; className?: string }) {
+  const locked = !!encrypted && status === "sealed";
   return (
     <span className={cn("inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 font-sans text-[11px] font-medium uppercase tracking-[0.1em]", pill[status], className)}>
-      {status !== "archived" && <span className={cn("size-2 rounded-full", status === "active" ? "bg-amber" : "bg-ink-muted")} />}
+      {locked ? (
+        <Lock size={12} strokeWidth={2} className="-ml-0.5 shrink-0" aria-hidden />
+      ) : (
+        status !== "archived" && <span className={cn("size-2 rounded-full", status === "active" ? "bg-amber" : "bg-ink-muted")} />
+      )}
       {status}
+      {locked && <span className="sr-only">, encrypted</span>}
     </span>
   );
+}
+
+/** "OPERATION: NIGHTFALL" splits into a label and a name at the first colon. Without one, the codename is all name. */
+export function splitCodename(codename: string): { label: string | null; name: string } {
+  const i = codename.indexOf(":");
+  const label = i < 0 ? "" : codename.slice(0, i).trim();
+  const name = i < 0 ? "" : codename.slice(i + 1).trim();
+  return label && name ? { label, name } : { label: null, name: codename.trim() };
 }
 
 export const threatColor: Record<Threat, string> = {

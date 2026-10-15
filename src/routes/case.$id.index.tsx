@@ -1,11 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { AudioWaveform, MoreHorizontal, Plus, Lock, X } from "lucide-react";
+import { AudioWaveform, MoreHorizontal, Plus, Lock, SlidersHorizontal, X } from "lucide-react";
+import { toast } from "sonner";
 import { useBlobUrl, useCase, useCaseNotes, useEvidenceList, useSubjects } from "@/data/hooks";
 import type { CaseRec, EvidenceRec, NoteType, SubjectRec } from "@/data/db";
 import { caseRepo, subjectRepo } from "@/data/repo";
-import { BackLink, EmptyState, IconButton, PageHeader, QuietState, Silhouette, StatusPill, SW, ThreatDot } from "@/components/at/ui";
-import { CaseActionsSheet } from "@/components/at/CaseSheets";
+import { isEncrypted } from "@/data/seal";
+import { BackLink, EmptyState, IconButton, PageHeader, QuietState, Silhouette, splitCodename, StatusPill, SW, ThreatDot } from "@/components/at/ui";
+import { CaseActionsSheet, filterChips, matchesTimeline, NO_FILTER, TimelineFilterSheet, type TimelineFilter } from "@/components/at/CaseSheets";
+import { UnsealSheet } from "@/components/seal/UnsealSheet";
+import { SEALED_ENCRYPTED } from "@/components/seal/SealMark";
 import { NoteRow } from "@/components/at/notes";
 import { CaseBoardTab } from "@/components/board/CaseBoardTab";
 import { CaseMapTab } from "@/components/map/CaseMapTab";
@@ -45,10 +49,10 @@ function CaseScreen() {
     <div>
       <PageHeader
         back={<BackLink to="/" label="Vault" />}
-        title={<h1 className="codename truncate text-[19px] text-ink">{c.codename}</h1>}
+        title={<CaseTitle codename={c.codename} />}
         right={
           <div className="flex items-center gap-1">
-            <StatusPill status={c.status} />
+            <StatusPill status={c.status} encrypted={isEncrypted(c)} />
             <IconButton label="Case options" onClick={() => setMenu(true)}>
               <MoreHorizontal size={22} strokeWidth={SW} />
             </IconButton>
@@ -86,14 +90,35 @@ function CaseScreen() {
   );
 }
 
+/** Never truncated: "OPERATION" as a small amber label over "NIGHTFALL" in serif. No colon, no label. */
+function CaseTitle({ codename }: { codename: string }) {
+  const { label, name } = splitCodename(codename);
+  return (
+    <h1 className="py-1.5">
+      {label && <span className="block font-mono text-[10.5px] leading-4 font-medium tracking-[0.18em] text-amber uppercase">{label}</span>}
+      <span className="codename block text-[22px] leading-[1.12] break-words text-ink">{name}</span>
+    </h1>
+  );
+}
+
 function ReadOnlyBanner({ c }: { c: CaseRec }) {
+  const encrypted = isEncrypted(c);
+  const [unseal, setUnseal] = useState(false);
+  const reopen = async () => {
+    try {
+      await caseRepo.setStatus(c.id, "active");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
   return (
     <div className="flex items-center gap-3 border-b border-line bg-surface px-5 py-2.5">
-      <Lock size={15} strokeWidth={SW} className="text-ink-muted" />
-      <span className="flex-1 font-mono text-[11px] tracking-[0.12em] text-ink-muted uppercase">{c.status} · Read only</span>
-      <button className="btn btn-outline min-h-9 px-3 text-xs" onClick={() => caseRepo.setStatus(c.id, "active")}>
+      <Lock size={15} strokeWidth={SW} className={encrypted ? "text-amber" : "text-ink-muted"} />
+      <span className="flex-1 font-mono text-[11px] tracking-[0.12em] text-ink-muted uppercase">{encrypted ? SEALED_ENCRYPTED : `${c.status} · Read only`}</span>
+      <button className="btn btn-outline min-h-9 px-3 text-xs" onClick={() => (encrypted ? setUnseal(true) : void reopen())}>
         {c.status === "sealed" ? "Unseal" : "Reopen"}
       </button>
+      {encrypted && <UnsealSheet c={c} open={unseal} onClose={() => setUnseal(false)} />}
     </div>
   );
 }
@@ -118,52 +143,63 @@ function Timeline({ caseId }: { caseId: string }) {
   const notes = useCaseNotes(caseId);
   const subjects = useSubjects(caseId) ?? [];
   const [type, setType] = useState<"all" | NoteType>("all");
-  const [subject, setSubject] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [filter, setFilter] = useState<TimelineFilter>(NO_FILTER);
+  const [sheet, setSheet] = useState(false);
 
   const groups = useMemo(() => {
-    const f = (notes ?? []).filter((n) => {
-      if (type !== "all" && n.type !== type) return false;
-      if (subject && !n.subjectIds.includes(subject)) return false;
-      if (from && n.createdAt < new Date(from + "T00:00").getTime()) return false;
-      if (to && n.createdAt > new Date(to + "T23:59:59").getTime()) return false;
-      return true;
-    });
+    const now = Date.now();
+    const f = (notes ?? []).filter((n) => (type === "all" || n.type === type) && matchesTimeline(n, filter, now));
     const map = new Map<string, typeof f>();
     for (const n of f) {
       const k = dayHeader(n.createdAt);
       map.set(k, [...(map.get(k) ?? []), n]);
     }
     return [...map.entries()];
-  }, [notes, type, subject, from, to]);
+  }, [notes, type, filter]);
 
   if (!notes) return null;
   if (notes.length === 0) return <EmptyState title="Nothing on the timeline." body="Captures filed to this case appear here, newest first." />;
-  const filtered = type !== "all" || subject || from || to;
+  const chips = filterChips(filter, subjects);
 
   return (
     <div>
-      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-3">
+      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-2.5">
         {TYPE_FILTERS.map((t) => (
           <Chip key={t.key} on={type === t.key} onClick={() => setType(t.key)}>
             {t.label}
           </Chip>
         ))}
       </div>
-      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 pb-4">
-        <select aria-label="Subject" className="field min-h-10 px-2 font-mono text-[12px]" value={subject} onChange={(e) => setSubject(e.target.value)}>
-          <option value="">All subjects</option>
-          {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-        <input aria-label="From date" type="date" className="field min-h-10 px-2 font-mono text-[12px]" value={from} onChange={(e) => setFrom(e.target.value)} />
-        <input aria-label="To date" type="date" className="field min-h-10 px-2 font-mono text-[12px]" value={to} onChange={(e) => setTo(e.target.value)} />
-      </div>
-      {filtered && (
-        <button className="mb-3 inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted" onClick={() => { setType("all"); setSubject(""); setFrom(""); setTo(""); }}>
-          <X size={14} strokeWidth={SW} /> Clear filters
+      {/* Subject and date filters live in a sheet; what is applied shows here as removable chips. */}
+      <div className="flex flex-wrap items-center gap-2 pb-4">
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          onClick={() => setSheet(true)}
+          className={cn("inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 font-mono text-[11.5px] uppercase tracking-[0.08em]", chips.length ? "border-amber-line text-amber" : "border-line-strong text-ink-muted")}
+        >
+          <SlidersHorizontal size={14} strokeWidth={SW} />
+          Filter
         </button>
-      )}
+        {chips.map((ch) => (
+          <button
+            key={ch.key}
+            type="button"
+            aria-label={`Remove filter ${ch.label}`}
+            onClick={() => setFilter(ch.next)}
+            className="anim-fade inline-flex min-h-9 items-center gap-1.5 rounded-full border border-amber-line bg-amber-fill pr-2.5 pl-3 font-mono text-[11px] uppercase tracking-[0.08em] text-amber"
+          >
+            {ch.label}
+            <X size={13} strokeWidth={SW} />
+          </button>
+        ))}
+        {chips.length > 1 && (
+          <button type="button" className="min-h-9 px-1 font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted" onClick={() => setFilter(NO_FILTER)}>
+            Clear all
+          </button>
+        )}
+      </div>
+      <TimelineFilterSheet open={sheet} onClose={() => setSheet(false)} subjects={subjects} value={filter} onChange={setFilter} />
       {groups.length === 0 && <EmptyState title="No entries match." body="Adjust the filters to widen the record." />}
       {groups.map(([day, items]) => (
         <section key={day} className="mb-5">
@@ -242,7 +278,7 @@ function NotesTab({ c }: { c: CaseRec }) {
 function EvidenceTile({ e }: { e: EvidenceRec }) {
   const url = useBlobUrl(e.thumbBlobId ?? e.blobId);
   return (
-    <Link to="/evidence/$eid" params={{ eid: e.id }} className="relative block aspect-square overflow-hidden rounded-[10px] border border-line bg-surface-raised">
+    <Link to="/evidence/$eid" params={{ eid: e.id }} aria-label={`Open ${e.fileName}`} className="relative block aspect-square overflow-hidden rounded-[10px] border border-line bg-surface-raised">
       {url && <img src={url} alt={e.fileName} className="photo size-full object-cover" />}
       <span className="absolute inset-x-0 bottom-0 truncate bg-bg/70 px-1.5 py-0.5 font-mono text-[9.5px] text-ink-muted">{e.fileName}</span>
     </Link>

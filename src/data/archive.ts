@@ -1,7 +1,8 @@
 import JSZip from "jszip";
-import { db, type CaseRec, type EvidenceRec, type NoteRec, type SubjectRec } from "./db";
+import { db, type BlobRec, type CaseRec, type CustodyEntry, type EvidenceRec, type LinkRec, type NoteRec, type SubjectRec } from "./db";
 import { downloadBlob, sha256Hex } from "./repo";
 import { noteHeadline } from "./rules";
+import { isEncrypted } from "./seal";
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "untitled";
 const ymd = (ts: number) => {
@@ -13,9 +14,21 @@ const yaml = (o: Record<string, unknown>) => `---\n${Object.entries(o).map(([k, 
 export interface ManifestEntry {
   path: string;
   blobId: string;
+  /** SHA-256 of the file exactly as stored in the archive (ciphertext for a sealed case) */
   sha256: string;
   size: number;
   mimeType: string;
+  /** Base64 AES-GCM IV, present when the file is ciphertext from an encrypted case */
+  iv?: string;
+}
+
+/** The only readable file an encrypted case contributes to an archive. */
+export const SEALED_MD = "This case is sealed. Open it in Alien Technology with its passcode.\n";
+
+/** Preview file name: "IMG_0047.NV" becomes "thumb-IMG_0047.jpg". Previews are always JPEG. */
+export function thumbName(fileName: string): string {
+  const dot = fileName.lastIndexOf(".");
+  return `thumb-${dot > 0 ? fileName.slice(0, dot) : fileName}.jpg`;
 }
 
 function noteMd(n: NoteRec, subjects: SubjectRec[]) {
@@ -45,27 +58,61 @@ function subjectMd(s: SubjectRec) {
   return `${fm}\n${lines.join("\n")}\n`;
 }
 
-/** caseIds null exports the whole vault. Appends "exported" custody to included evidence. */
+/**
+ * caseIds null exports the whole vault. Appends "exported" custody to included evidence.
+ * An encrypted case is exported exactly as stored: records with their ciphertext, media as ciphertext
+ * files with their IVs, and a SEALED.md in place of Markdown. Its evidence gets no custody entry.
+ */
 export async function buildArchive(caseIds: string[] | null): Promise<{ blob: Blob; name: string }> {
-  const cases: CaseRec[] = caseIds ? ((await db.cases.bulkGet(caseIds)).filter(Boolean) as CaseRec[]) : await db.cases.toArray();
-  const ids = cases.map((c) => c.id);
   const now = Date.now();
-  const [notes, subjects, links, evidence0, boardPositions] = await Promise.all([
-    db.notes.where("caseId").anyOf(ids).toArray(),
-    db.subjects.where("caseId").anyOf(ids).toArray(),
-    db.links.where("caseId").anyOf(ids).toArray(),
-    db.evidence.where("caseId").anyOf(ids).toArray(),
-    db.boardPositions.where("caseId").anyOf(ids).toArray(),
-  ]);
-  const evidence: EvidenceRec[] = evidence0.map((e) => ({ ...e, custody: [...e.custody, { at: now, action: "exported", detail: "Included in archive export" }] }));
-  await db.evidence.bulkPut(evidence);
+  const exported: CustodyEntry = { at: now, action: "exported", detail: "Included in archive export" };
+
+  // One transaction: the records, their media and the custody entries describe the same moment, and a case
+  // sealed during an export can never get a plaintext record written back over its ciphertext.
+  const snap = await db.transaction("rw", [db.cases, db.notes, db.subjects, db.links, db.evidence, db.boardPositions, db.blobs], async () => {
+    const cases: CaseRec[] = caseIds ? ((await db.cases.bulkGet(caseIds)).filter(Boolean) as CaseRec[]) : await db.cases.toArray();
+    const ids = cases.map((c) => c.id);
+    const sealed = new Set(cases.filter(isEncrypted).map((c) => c.id));
+    const [notes, subjects, links, evidence0, boardPositions] = await Promise.all([
+      db.notes.where("caseId").anyOf(ids).toArray(),
+      db.subjects.where("caseId").anyOf(ids).toArray(),
+      db.links.where("caseId").anyOf(ids).toArray(),
+      db.evidence.where("caseId").anyOf(ids).toArray(),
+      db.boardPositions.where("caseId").anyOf(ids).toArray(),
+    ]);
+    const isSealed = (r: { caseId: string; enc?: unknown }) => !!r.enc || sealed.has(r.caseId);
+    const evidence: EvidenceRec[] = evidence0.map((e) => (isSealed(e) ? e : { ...e, custody: [...e.custody, exported] }));
+    await db.evidence.bulkPut(evidence.filter((e) => !isSealed(e)));
+
+    const refs: { blobId: string; name: string; sealed: boolean }[] = [];
+    for (const e of evidence) {
+      const s = isSealed(e);
+      refs.push({ blobId: e.blobId, name: s ? `${e.blobId}.bin` : e.fileName, sealed: s });
+      if (e.thumbBlobId) refs.push({ blobId: e.thumbBlobId, name: s ? `${e.thumbBlobId}.bin` : thumbName(e.fileName), sealed: s });
+    }
+    for (const sub of subjects) {
+      if (!sub.photoBlobId) continue;
+      const s = isSealed(sub);
+      refs.push({ blobId: sub.photoBlobId, name: s ? `${sub.photoBlobId}.bin` : `subject-${slug(sub.name)}.jpg`, sealed: s });
+    }
+    const blobs = await db.blobs.bulkGet(refs.map((r) => r.blobId));
+    return { cases, notes, subjects, links, evidence, boardPositions, sealed, refs, blobs, isSealed };
+  });
+  const { cases, notes, subjects, links, evidence, boardPositions, sealed, refs, blobs, isSealed } = snap;
 
   const zip = new JSZip();
   zip.file("vault.json", JSON.stringify({ format: "alien-technology/vault", version: 2, exportedAt: new Date(now).toISOString(), cases, notes, subjects, links, evidence, boardPositions }, null, 2));
 
+  const dirs = new Set<string>();
   for (const c of cases) {
-    const dir = `cases/${slug(c.codename)}`;
-    const cs = subjects.filter((s) => s.caseId === c.id);
+    let dir = `cases/${slug(c.codename)}`;
+    for (let i = 2; dirs.has(dir); i++) dir = `cases/${slug(c.codename)}-${i}`;
+    dirs.add(dir);
+    if (sealed.has(c.id)) {
+      zip.file(`${dir}/SEALED.md`, SEALED_MD);
+      continue;
+    }
+    const cs = subjects.filter((s) => s.caseId === c.id && !s.enc);
     const used = new Set<string>();
     const uniq = (base: string) => {
       let n = base;
@@ -74,23 +121,20 @@ export async function buildArchive(caseIds: string[] | null): Promise<{ blob: Bl
       used.add(n);
       return n;
     };
-    for (const n of notes.filter((x) => x.caseId === c.id)) zip.file(`${dir}/notes/${uniq(`${ymd(n.createdAt)}-${slug(noteHeadline(n)).slice(0, 48)}`)}.md`, noteMd(n, cs));
+    for (const n of notes.filter((x) => x.caseId === c.id && !isSealed(x))) zip.file(`${dir}/notes/${uniq(`${ymd(n.createdAt)}-${slug(noteHeadline(n)).slice(0, 48)}`)}.md`, noteMd(n, cs));
     for (const s of cs) zip.file(`${dir}/subjects/${uniq(slug(s.name))}.md`, subjectMd(s));
   }
 
-  const refs: { blobId: string; name: string }[] = [];
-  for (const e of evidence) {
-    refs.push({ blobId: e.blobId, name: e.fileName });
-    if (e.thumbBlobId) refs.push({ blobId: e.thumbBlobId, name: `thumb-${e.fileName}.jpg` });
-  }
-  for (const s of subjects) if (s.photoBlobId) refs.push({ blobId: s.photoBlobId, name: `subject-${slug(s.name)}.jpg` });
-
   const manifest: ManifestEntry[] = [];
   const usedNames = new Set<string>();
-  for (const r of refs) {
-    const b = await db.blobs.get(r.blobId);
-    if (!b) continue;
-    let name = r.name.replace(/[/\\]/g, "_");
+  const done = new Set<string>();
+  for (const [i, r] of refs.entries()) {
+    const b: BlobRec | undefined = blobs[i];
+    if (!b || done.has(r.blobId)) continue;
+    // An encrypted case contributes ciphertext only; a readable Blob in one is left out rather than exported.
+    if (r.sealed && !b.iv) continue;
+    done.add(r.blobId);
+    let name = (b.iv ? `${r.blobId}.bin` : r.name).replace(/[/\\]/g, "_");
     if (usedNames.has(name)) {
       const dot = name.lastIndexOf(".");
       name = dot > 0 ? `${name.slice(0, dot)}-${r.blobId.slice(0, 6)}${name.slice(dot)}` : `${name}-${r.blobId.slice(0, 6)}`;
@@ -98,7 +142,7 @@ export async function buildArchive(caseIds: string[] | null): Promise<{ blob: Bl
     usedNames.add(name);
     const path = `media/${name}`;
     zip.file(path, b.data);
-    manifest.push({ path, blobId: r.blobId, sha256: await sha256Hex(b.data), size: b.data.size, mimeType: b.data.type });
+    manifest.push({ path, blobId: r.blobId, sha256: await sha256Hex(b.data), size: b.data.size, mimeType: b.data.type, ...(b.iv ? { iv: b.iv } : {}) });
   }
   zip.file("manifest.json", JSON.stringify({ format: "alien-technology/manifest", media: manifest }, null, 2));
 
@@ -130,6 +174,8 @@ export interface ImportReport {
   evidence: number;
   skipped: number;
   mismatches: number;
+  /** Records left out because their case is stored differently here (encrypted versus readable, or another key) */
+  refused?: number;
 }
 
 async function mergeTable<T extends { id: string }>(table: { bulkGet: (k: string[]) => Promise<(T | undefined)[]>; bulkAdd: (r: T[]) => Promise<unknown> }, rows: T[] = []) {
@@ -140,9 +186,15 @@ async function mergeTable<T extends { id: string }>(table: { bulkGet: (k: string
   return { added: fresh.length, skipped: rows.length - fresh.length };
 }
 
-/** Verify media against manifest.json, then merge by id; existing ids are skipped. */
+type CaseScoped = { caseId: string; enc?: unknown };
+
+/**
+ * Verify media against manifest.json, then merge by id; existing ids are skipped.
+ * Encrypted cases come back sealed with their ciphertext and IVs, and open with their original passcode.
+ * A record only joins a case stored the same way: ciphertext under the same key, or plaintext in a plaintext case.
+ */
 export async function importArchive(file: Blob): Promise<ImportReport> {
-  const zip = await JSZip.loadAsync(file);
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const vf = zip.file("vault.json");
   if (!vf) throw new Error("This file is not an Alien Technology archive.");
   const v = JSON.parse(await vf.async("string"));
@@ -151,7 +203,7 @@ export async function importArchive(file: Blob): Promise<ImportReport> {
   const manifest: ManifestEntry[] = mf ? JSON.parse(await mf.async("string")).media ?? [] : [];
 
   let mismatches = 0;
-  const blobs: { id: string; data: Blob }[] = [];
+  const blobs: BlobRec[] = [];
   for (const m of manifest) {
     const f = zip.file(m.path);
     if (!f) {
@@ -160,26 +212,47 @@ export async function importArchive(file: Blob): Promise<ImportReport> {
     }
     const data = new Blob([await f.async("arraybuffer")], { type: m.mimeType });
     if ((await sha256Hex(data)) !== m.sha256) mismatches++;
-    blobs.push({ id: m.blobId, data });
+    blobs.push(m.iv ? { id: m.blobId, data, iv: m.iv } : { id: m.blobId, data });
   }
 
   const now = Date.now();
-  const evidence: EvidenceRec[] = (v.evidence ?? []).map((e: EvidenceRec) => ({ ...e, custody: [...e.custody, { at: now, action: "imported", detail: "Imported from archive" }] }));
+  const imported: CustodyEntry = { at: now, action: "imported", detail: "Imported from archive" };
+  const archiveCases: CaseRec[] = v.cases ?? (v.case ? [v.case] : []);
+  const archiveKey = new Map(archiveCases.map((c) => [c.id, c.encryptionKeyRef ?? null]));
 
   const r = await db.transaction("rw", [db.cases, db.notes, db.subjects, db.links, db.evidence, db.boardPositions, db.blobs], async () => {
-    await mergeTable(db.blobs, blobs);
-    const c = await mergeTable(db.cases, v.cases ?? (v.case ? [v.case] : []));
-    const n = await mergeTable(db.notes, v.notes);
-    const s = await mergeTable(db.subjects, v.subjects);
-    await mergeTable(db.links, v.links);
+    const c = await mergeTable(db.cases, archiveCases);
+    const rows = { notes: (v.notes ?? []) as NoteRec[], subjects: (v.subjects ?? []) as SubjectRec[], links: (v.links ?? []) as LinkRec[], evidence: (v.evidence ?? []) as EvidenceRec[] };
+    const caseIds = [...new Set([...rows.notes, ...rows.subjects, ...rows.links, ...rows.evidence].map((x) => x.caseId))];
+    const stored = new Map(caseIds.map((id, i) => [id, i] as const));
+    const here = await db.cases.bulkGet(caseIds);
+    const fits = (x: CaseScoped) => {
+      const lc = here[stored.get(x.caseId)!];
+      const localKey = lc && isEncrypted(lc) ? lc.encryptionKeyRef : null;
+      return x.enc ? !!localKey && localKey === archiveKey.get(x.caseId) : !localKey;
+    };
+    const notes = rows.notes.filter(fits);
+    const subjects = rows.subjects.filter(fits);
+    const links = rows.links.filter(fits);
+    const evidence = rows.evidence.filter(fits).map((e) => (e.enc ? e : { ...e, custody: [...e.custody, imported] }));
+    const refused = rows.notes.length + rows.subjects.length + rows.links.length + rows.evidence.length - notes.length - subjects.length - links.length - evidence.length;
+    const refusedMedia = new Set([
+      ...rows.evidence.filter((e) => !fits(e)).flatMap((e) => [e.blobId, ...(e.thumbBlobId ? [e.thumbBlobId] : [])]),
+      ...rows.subjects.filter((s) => !fits(s)).flatMap((s) => (s.photoBlobId ? [s.photoBlobId] : [])),
+    ]);
+
+    await mergeTable(db.blobs, blobs.filter((b) => !refusedMedia.has(b.id)));
+    const n = await mergeTable(db.notes, notes);
+    const s = await mergeTable(db.subjects, subjects);
+    await mergeTable(db.links, links);
     const e = await mergeTable(db.evidence, evidence);
     await mergeTable(db.boardPositions, v.boardPositions);
-    return { cases: c.added, notes: n.added, subjects: s.added, evidence: e.added, skipped: c.skipped + n.skipped + s.skipped + e.skipped };
+    return { cases: c.added, notes: n.added, subjects: s.added, evidence: e.added, skipped: c.skipped + n.skipped + s.skipped + e.skipped, refused };
   });
   return { ...r, mismatches };
 }
 
 export function reportText(r: ImportReport) {
   const pl = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
-  return `Imported ${pl(r.cases, "case")}, ${pl(r.notes, "note")}, ${r.evidence} evidence item${r.evidence === 1 ? "" : "s"}. ${pl(r.mismatches, "hash mismatch").replace("mismatchs", "mismatches")}.${r.skipped ? ` ${r.skipped} existing records skipped.` : ""}`;
+  return `Imported ${pl(r.cases, "case")}, ${pl(r.notes, "note")}, ${r.evidence} evidence item${r.evidence === 1 ? "" : "s"}. ${pl(r.mismatches, "hash mismatch").replace("mismatchs", "mismatches")}.${r.skipped ? ` ${r.skipped} existing records skipped.` : ""}${r.refused ? ` ${pl(r.refused, "record")} left out: ${r.refused === 1 ? "its case is" : "their case is"} stored differently on this device.` : ""}`;
 }

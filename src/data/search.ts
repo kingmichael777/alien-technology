@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo } from "react";
 import { db } from "./db";
 import { noteHeadline } from "./rules";
+import { isEncrypted } from "./seal";
 
 export type HitKind = "case" | "subject" | "note" | "evidence";
 
@@ -19,19 +20,19 @@ export interface SearchDoc {
   noteType?: string;
 }
 
-/** Builds an in-memory index from Dexie; rebuilt whenever the data changes. Sealed cases excluded. */
+/** Builds an in-memory index from Dexie; rebuilt whenever the data changes. Sealed and encrypted cases are excluded, and so is any record still carrying ciphertext. */
 export function useSearchIndex() {
   const docs = useLiveQuery(async () => {
     const [cases, notes, subjects, evidence] = await Promise.all([db.cases.toArray(), db.notes.toArray(), db.subjects.toArray(), db.evidence.toArray()]);
-    const open = new Map(cases.filter((c) => c.status !== "sealed").map((c) => [c.id, c.codename]));
+    const open = new Map(cases.filter((c) => c.status !== "sealed" && !isEncrypted(c)).map((c) => [c.id, c.codename]));
     const out: SearchDoc[] = [];
     for (const c of cases) if (open.has(c.id)) out.push({ id: c.id, kind: "case", caseId: c.id, codename: c.codename, title: c.codename, text: "", hidden: "" });
     for (const n of notes) {
-      const cn = open.get(n.caseId);
+      const cn = n.enc ? undefined : open.get(n.caseId);
       if (cn) out.push({ id: n.id, kind: "note", caseId: n.caseId, codename: cn, title: noteHeadline(n), text: [n.body, n.transcript].filter(Boolean).join("\n"), hidden: "", noteType: n.type });
     }
     for (const s of subjects) {
-      const cn = open.get(s.caseId);
+      const cn = s.enc ? undefined : open.get(s.caseId);
       if (!cn) continue;
       const vis: string[] = [];
       const hid: string[] = [];
@@ -40,7 +41,7 @@ export function useSearchIndex() {
       out.push({ id: s.id, kind: "subject", caseId: s.caseId, codename: cn, title: s.name, text: vis.join(" · "), hidden: hid.join(" ") });
     }
     for (const e of evidence) {
-      const cn = open.get(e.caseId);
+      const cn = e.enc ? undefined : open.get(e.caseId);
       if (cn) out.push({ id: e.id, kind: "evidence", caseId: e.caseId, codename: cn, title: e.fileName, text: e.kind, hidden: "" });
     }
     return { docs: out, sealed: cases.length - open.size };
