@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Search, Settings, X } from "lucide-react";
+import { AddRecording } from "@/components/AddRecording";
 import { ConnectCard } from "@/components/ConnectCard";
 import { RecordButton } from "@/components/RecordButton";
 import { StatusLine, usePhase } from "@/components/Status";
@@ -43,6 +44,7 @@ function Home() {
         <RecordButton />
         <p className="mt-5 font-serif text-[24px] leading-none text-ink">Tap to record</p>
         <p className="mt-2.5 text-[13.5px] text-ink-muted">Let everyone know you're recording.</p>
+        <AddRecording />
       </section>
 
       {!connected && <ConnectCard className="mx-4 mb-7" />}

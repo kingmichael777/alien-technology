@@ -153,3 +153,16 @@ describe("access code", () => {
     expect(looksLikeCode("hello")).toBe(false);
   });
 });
+
+describe("adding a file", async () => {
+  const { fileType } = await import("@/lib/library");
+  it("reads the type from the file or its name", () => {
+    expect(fileType("Call with Dana.m4a", "audio/x-m4a")).toBe("audio/mp4");
+    expect(fileType("Call with Dana.m4a", "")).toBe("audio/mp4");
+    expect(fileType("memo.mp3", "audio/mp3")).toBe("audio/mpeg");
+    expect(fileType("memo.wav", "audio/wave")).toBe("audio/wav");
+    expect(fileType("clip.webm", "audio/webm;codecs=opus")).toBe("audio/webm");
+    expect(fileType("photo.jpg", "image/jpeg")).toBeNull();
+    expect(fileType("notes.txt", "")).toBeNull();
+  });
+});

@@ -21,7 +21,7 @@ export interface RecordingRow {
   hasAudio: boolean;
   sync: LocalSync;
   syncError: string | null;
-  source: "app" | "recovered" | "earlier" | "server";
+  source: "app" | "recovered" | "earlier" | "server" | "imported";
   server: ServerCopy | null;
   /** updated_at of the last full copy fetched from the server. */
   detailAt: string | null;

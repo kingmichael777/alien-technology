@@ -83,6 +83,75 @@ export async function rewriteNotes(row: RecordingRow) {
   kick();
 }
 
+// ---------------------------------------------------------------- adding a file
+
+/** The audio formats your server can read, by file extension. */
+const BY_EXTENSION: Record<string, string> = {
+  m4a: "audio/mp4",
+  mp4: "audio/mp4",
+  aac: "audio/aac",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  oga: "audio/ogg",
+  opus: "audio/ogg",
+  webm: "audio/webm",
+};
+const KNOWN_TYPES = new Set([
+  "audio/mp4",
+  "audio/aac",
+  "audio/webm",
+  "audio/ogg",
+  "audio/mpeg",
+  "audio/wav",
+  "video/mp4",
+  "video/webm",
+]);
+export const MAX_FILE_BYTES = 200 * 1024 * 1024;
+
+/** The type to store a picked file as, or null when it isn't audio the server reads. */
+export function fileType(name: string, type: string): string | null {
+  let base = type.split(";")[0].trim().toLowerCase();
+  if (base === "audio/m4a" || base === "audio/x-m4a") base = "audio/mp4";
+  if (base === "audio/x-wav" || base === "audio/wave") base = "audio/wav";
+  if (base === "audio/mp3") base = "audio/mpeg";
+  if (KNOWN_TYPES.has(base)) return base;
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  return BY_EXTENSION[ext] ?? null;
+}
+
+function lengthOf(file: Blob): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    let done = false;
+    const finish = (ms: number) => {
+      if (done) return;
+      done = true;
+      URL.revokeObjectURL(url);
+      resolve(ms);
+    };
+    audio.preload = "metadata";
+    audio.onloadedmetadata = () => finish(Number.isFinite(audio.duration) ? Math.round(audio.duration * 1000) : 0);
+    audio.onerror = () => finish(0);
+    setTimeout(() => finish(0), 6000);
+    audio.src = url;
+  });
+}
+
+/** Adds an audio file from the phone (a call recording, a voice memo) as a recording. */
+export async function addFile(file: File): Promise<string> {
+  const type = fileType(file.name, file.type);
+  if (!type) throw new Error("That file isn't audio Alien can read. Pick an m4a, mp3, wav or similar file.");
+  if (file.size === 0) throw new Error("That file is empty.");
+  if (file.size > MAX_FILE_BYTES) throw new Error("That file is over 200 MB, which is too large to process.");
+  const id = crypto.randomUUID();
+  const durationMs = await lengthOf(file);
+  const blob = file.type === type ? file : new Blob([file], { type });
+  await saveRecording({ id, recordedAt: file.lastModified || Date.now(), durationMs, mimeType: type, blob, source: "imported" });
+  return id;
+}
+
 /** Deletes the recording from this phone and from your server. */
 export async function deleteRecording(row: RecordingRow) {
   const onServer = row.sync === "synced" || !!row.server;

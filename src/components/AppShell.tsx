@@ -4,7 +4,7 @@ import { getSetting, setSetting } from "@/lib/db";
 import { importEarlier } from "@/lib/earlier";
 import { useSetting } from "@/lib/hooks";
 import { registerServiceWorker } from "@/lib/pwa";
-import { recoverInterrupted } from "@/lib/recorder";
+import { recoverInterrupted, useRecorder } from "@/lib/recorder";
 import { startSync } from "@/lib/sync";
 import { connectWith } from "./ConnectCard";
 import { RecordingBanner } from "./RecordButton";
@@ -22,11 +22,33 @@ async function connectFromLink() {
   else toast("This phone is connected to your server.");
 }
 
+/** When a new version of the app takes over, reload into it, waiting until no recording is running. */
+function reloadOnUpdate() {
+  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    const reload = () => {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    };
+    const busy = (s: string) => s === "starting" || s === "recording" || s === "paused" || s === "saving";
+    if (!busy(useRecorder.getState().state)) return reload();
+    const stop = useRecorder.subscribe((st) => {
+      if (!busy(st.state)) {
+        stop();
+        reload();
+      }
+    });
+  });
+}
+
 let booted = false;
 
 async function boot() {
   if (booted) return;
   booted = true;
+  reloadOnUpdate();
   void registerServiceWorker();
   void connectFromLink();
   try {
