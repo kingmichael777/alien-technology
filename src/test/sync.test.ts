@@ -63,14 +63,23 @@ describe("merge", () => {
     expect((await db.recordings.get(light().id))?.sync).toBe("pending");
   });
 
-  it("removes recordings deleted on another device, but never ones not uploaded yet", async () => {
-    await db.recordings.add(local({ id: "a", sync: "synced", server: { ...light({ id: "a" }) } }));
+  it("never throws away audio this phone holds when the server copy is gone", async () => {
+    await db.recordings.add(local({ id: "a", sync: "synced", hasAudio: true, server: { ...light({ id: "a" }) } }));
     await db.audio.add({ id: "a", data: new Blob(["x"]) });
     await db.recordings.add(local({ id: "b", sync: "pending" }));
+    await db.recordings.add(local({ id: "c", sync: "synced", hasAudio: false, server: { ...light({ id: "c" }) } }));
     await merge([]);
-    expect(await db.recordings.get("a")).toBeUndefined();
-    expect(await db.audio.get("a")).toBeUndefined();
+    expect(await db.recordings.get("a")).toMatchObject({ sync: "pending" });
+    expect(await db.audio.get("a")).toBeDefined();
     expect(await db.recordings.get("b")).toBeDefined();
+    expect(await db.recordings.get("c")).toBeUndefined();
+  });
+
+  it("uploads again when the server is waiting for audio this phone holds", async () => {
+    await db.recordings.add(local({ sync: "synced", hasAudio: true, server: { ...light({ status: "ready" }) } }));
+    await merge([light({ status: "uploading", ai_title: null })]);
+    const r = await db.recordings.get(light().id);
+    expect(r?.sync).toBe("pending");
   });
 
   it("keeps transcript and notes until a fresh full copy arrives", async () => {

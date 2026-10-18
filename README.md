@@ -10,6 +10,7 @@ Live: https://alien-technology.netlify.app (Netlify project `alien-technology`).
 3. **Transcribe.** The `alien-tech` Edge Function sends the audio to ElevenLabs Scribe v2 with speaker separation.
 4. **Notes.** The function sends the transcript to OpenAI, which returns structured notes. Speakers appear in notes as `{speaker_0}` tokens, so renaming a speaker updates the notes and transcript everywhere without rewriting anything.
 5. **Sync.** The app polls the function for status, then caches transcripts and notes on the phone for offline reading and search.
+6. **Never lose audio.** If the server copy disappears or the server is still waiting for audio that a phone holds, that phone uploads it again. A phone only drops a recording missing from the server when it holds no audio for it.
 
 ## Pieces
 - `src/` the app: React 19, TypeScript, Vite, Tailwind v4, TanStack Router, Dexie, Zustand. Installable PWA that opens and records offline.

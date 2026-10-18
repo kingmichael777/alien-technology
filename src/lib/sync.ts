@@ -188,15 +188,24 @@ export async function merge(serverRows: ServerLight[]) {
         changes.sync = "synced";
         changes.syncError = null;
       }
+      // The server is waiting for audio this phone holds: send it again.
+      if (local.sync === "synced" && local.hasAudio && s.status === "uploading") {
+        changes.sync = "pending";
+        changes.syncError = null;
+      }
       await db.recordings.update(s.id, changes);
     }
-    // Deleted on another device.
+    // Gone from the server. When this phone still holds the audio, nothing is
+    // lost: it uploads again. Only a copy without audio here is removed.
     const synced = await db.recordings.where("sync").equals("synced").toArray();
     for (const r of synced) {
-      if (!onServer.has(r.id)) {
-        await db.recordings.delete(r.id);
-        await db.audio.delete(r.id);
+      if (onServer.has(r.id)) continue;
+      if (r.hasAudio) {
+        await db.recordings.update(r.id, { sync: "pending", syncError: null });
+        continue;
       }
+      await db.recordings.delete(r.id);
+      await db.audio.delete(r.id);
     }
   });
 }
