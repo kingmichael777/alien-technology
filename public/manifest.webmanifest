@@ -1,7 +1,7 @@
 {
   "name": "Alien Technology",
   "short_name": "Alien Tech",
-  "description": "Private Investigator Notes. Stored on this device only.",
+  "description": "Record a conversation. Get a transcript with speakers and clean notes.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

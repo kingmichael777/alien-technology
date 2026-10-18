@@ -1,23 +1,10 @@
-// Single source for every date and coordinate shown in the app.
+// Every date, time and length shown in the app comes from here.
+
 const pad = (n: number) => String(n).padStart(2, "0");
 
-export function clock(ts: number): string {
-  const d = new Date(ts);
-  let h = d.getHours();
-  const ap = h >= 12 ? "PM" : "AM";
-  h = h % 12 || 12;
-  return `${pad(h)}:${pad(d.getMinutes())} ${ap}`;
-}
-
-/** 11.08.24 (month first) */
-export function compactDate(ts: number): string {
-  const d = new Date(ts);
-  return `${pad(d.getMonth() + 1)}.${pad(d.getDate())}.${String(d.getFullYear()).slice(-2)}`;
-}
-
-/** 11.08.24 · 02:17 AM */
-export function compact(ts: number): string {
-  return `${compactDate(ts)} · ${clock(ts)}`;
+/** 9:27 PM */
+export function timeOfDay(ts: number): string {
+  return new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
 const startOfDay = (ts: number) => {
@@ -26,50 +13,50 @@ const startOfDay = (ts: number) => {
   return d.getTime();
 };
 
-/** Today, 02:17 AM / Yesterday, 11:43 PM / 3 Days Ago, 08:09 PM / 1 Week Ago, 04:22 PM */
-export function relative(ts: number, now: number = Date.now()): string {
+/** Today, 9:27 PM / Yesterday, 4:02 PM / Thu, Oct 15, 9:27 PM / Oct 15, 2025, 9:27 PM */
+export function when(ts: number, now: number = Date.now()): string {
   const days = Math.round((startOfDay(now) - startOfDay(ts)) / 86_400_000);
-  let label: string;
-  if (days <= 0) label = "Today";
-  else if (days === 1) label = "Yesterday";
-  else if (days < 7) label = `${days} Days Ago`;
-  else if (days < 30) {
-    const w = Math.floor(days / 7);
-    label = `${w} Week${w > 1 ? "s" : ""} Ago`;
-  } else if (days < 365) {
-    const m = Math.floor(days / 30);
-    label = `${m} Month${m > 1 ? "s" : ""} Ago`;
-  } else {
-    const y = Math.floor(days / 365);
-    label = `${y} Year${y > 1 ? "s" : ""} Ago`;
-  }
-  return `${label}, ${clock(ts)}`;
+  const t = timeOfDay(ts);
+  if (days === 0) return `Today, ${t}`;
+  if (days === 1) return `Yesterday, ${t}`;
+  const d = new Date(ts);
+  if (days > 1 && days < 7) return `${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}, ${t}`;
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) })}, ${t}`;
 }
 
-const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-export function dayHeader(ts: number): string {
-  return `${WEEKDAYS[new Date(ts).getDay()]} ${compactDate(ts)}`;
+/** Saturday, October 17, 2026 at 9:27 PM */
+export function longWhen(ts: number): string {
+  const d = new Date(ts);
+  return `${d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })} at ${timeOfDay(ts)}`;
 }
 
-/** 39.7425° N, 105.1786° W */
-export function coords(lat: number, lng: number): string {
-  return `${Math.abs(lat).toFixed(4)}° ${lat >= 0 ? "N" : "S"}, ${Math.abs(lng).toFixed(4)}° ${lng >= 0 ? "E" : "W"}`;
+/** 0:54 / 12:05 / 1:02:05 */
+export function length(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return h ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+}
+
+/** Timer while recording: 00:54 / 12:05 / 1:02:05 */
+export function timer(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return h ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+}
+
+/** Transcript stamp from seconds, counted down like a clock: 7.9 s is 0:07. */
+export function stamp(seconds: number): string {
+  return length(Math.floor(Math.max(0, seconds)) * 1000);
 }
 
 export function bytes(n: number): string {
   if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
-
-export function duration(ms: number): string {
-  const s = Math.round(ms / 1000);
-  return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
-}
-
-/** For datetime-local inputs */
-export function toLocalInput(ts: number | null): string {
-  if (!ts) return "";
-  const d = new Date(ts);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }

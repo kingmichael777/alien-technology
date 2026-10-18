@@ -10,25 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as SearchRouteImport } from './routes/search'
+import { Route as RecordRouteImport } from './routes/record'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as CapturePhotoRouteImport } from './routes/capture.photo'
-import { Route as CaptureTextRouteImport } from './routes/capture.text'
-import { Route as CaptureVoiceRouteImport } from './routes/capture.voice'
-import { Route as CaseIdRouteImport } from './routes/case.$id'
-import { Route as EvidenceEidRouteImport } from './routes/evidence.$eid'
-import { Route as CaseIdIndexRouteImport } from './routes/case.$id.index'
-import { Route as CaseIdNoteNidRouteImport } from './routes/case.$id.note.$nid'
-import { Route as CaseIdSubjectSidRouteImport } from './routes/case.$id.subject.$sid'
+import { Route as RIdRouteImport } from './routes/r.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SearchRoute = SearchRouteImport.update({
-  id: '/search',
-  path: '/search',
+const RecordRoute = RecordRouteImport.update({
+  id: '/record',
+  path: '/record',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -36,136 +29,44 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CapturePhotoRoute = CapturePhotoRouteImport.update({
-  id: '/capture/photo',
-  path: '/capture/photo',
+const RIdRoute = RIdRouteImport.update({
+  id: '/r/$id',
+  path: '/r/$id',
   getParentRoute: () => rootRouteImport,
-} as any)
-const CaptureTextRoute = CaptureTextRouteImport.update({
-  id: '/capture/text',
-  path: '/capture/text',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CaptureVoiceRoute = CaptureVoiceRouteImport.update({
-  id: '/capture/voice',
-  path: '/capture/voice',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CaseIdRoute = CaseIdRouteImport.update({
-  id: '/case/$id',
-  path: '/case/$id',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EvidenceEidRoute = EvidenceEidRouteImport.update({
-  id: '/evidence/$eid',
-  path: '/evidence/$eid',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CaseIdIndexRoute = CaseIdIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => CaseIdRoute,
-} as any)
-const CaseIdNoteNidRoute = CaseIdNoteNidRouteImport.update({
-  id: '/note/$nid',
-  path: '/note/$nid',
-  getParentRoute: () => CaseIdRoute,
-} as any)
-const CaseIdSubjectSidRoute = CaseIdSubjectSidRouteImport.update({
-  id: '/subject/$sid',
-  path: '/subject/$sid',
-  getParentRoute: () => CaseIdRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/search': typeof SearchRoute
+  '/record': typeof RecordRoute
   '/settings': typeof SettingsRoute
-  '/capture/photo': typeof CapturePhotoRoute
-  '/capture/text': typeof CaptureTextRoute
-  '/capture/voice': typeof CaptureVoiceRoute
-  '/case/$id': typeof CaseIdRouteWithChildren
-  '/evidence/$eid': typeof EvidenceEidRoute
-  '/case/$id/': typeof CaseIdIndexRoute
-  '/case/$id/note/$nid': typeof CaseIdNoteNidRoute
-  '/case/$id/subject/$sid': typeof CaseIdSubjectSidRoute
+  '/r/$id': typeof RIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/search': typeof SearchRoute
+  '/record': typeof RecordRoute
   '/settings': typeof SettingsRoute
-  '/capture/photo': typeof CapturePhotoRoute
-  '/capture/text': typeof CaptureTextRoute
-  '/capture/voice': typeof CaptureVoiceRoute
-  '/evidence/$eid': typeof EvidenceEidRoute
-  '/case/$id': typeof CaseIdIndexRoute
-  '/case/$id/note/$nid': typeof CaseIdNoteNidRoute
-  '/case/$id/subject/$sid': typeof CaseIdSubjectSidRoute
+  '/r/$id': typeof RIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/search': typeof SearchRoute
+  '/record': typeof RecordRoute
   '/settings': typeof SettingsRoute
-  '/capture/photo': typeof CapturePhotoRoute
-  '/capture/text': typeof CaptureTextRoute
-  '/capture/voice': typeof CaptureVoiceRoute
-  '/case/$id': typeof CaseIdRouteWithChildren
-  '/evidence/$eid': typeof EvidenceEidRoute
-  '/case/$id/': typeof CaseIdIndexRoute
-  '/case/$id/note/$nid': typeof CaseIdNoteNidRoute
-  '/case/$id/subject/$sid': typeof CaseIdSubjectSidRoute
+  '/r/$id': typeof RIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/search'
-    | '/settings'
-    | '/capture/photo'
-    | '/capture/text'
-    | '/capture/voice'
-    | '/case/$id'
-    | '/evidence/$eid'
-    | '/case/$id/'
-    | '/case/$id/note/$nid'
-    | '/case/$id/subject/$sid'
+  fullPaths: '/' | '/record' | '/settings' | '/r/$id'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/search'
-    | '/settings'
-    | '/capture/photo'
-    | '/capture/text'
-    | '/capture/voice'
-    | '/evidence/$eid'
-    | '/case/$id'
-    | '/case/$id/note/$nid'
-    | '/case/$id/subject/$sid'
-  id:
-    | '__root__'
-    | '/'
-    | '/search'
-    | '/settings'
-    | '/capture/photo'
-    | '/capture/text'
-    | '/capture/voice'
-    | '/case/$id'
-    | '/evidence/$eid'
-    | '/case/$id/'
-    | '/case/$id/note/$nid'
-    | '/case/$id/subject/$sid'
+  to: '/' | '/record' | '/settings' | '/r/$id'
+  id: '__root__' | '/' | '/record' | '/settings' | '/r/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  SearchRoute: typeof SearchRoute
+  RecordRoute: typeof RecordRoute
   SettingsRoute: typeof SettingsRoute
-  CapturePhotoRoute: typeof CapturePhotoRoute
-  CaptureTextRoute: typeof CaptureTextRoute
-  CaptureVoiceRoute: typeof CaptureVoiceRoute
-  CaseIdRoute: typeof CaseIdRouteWithChildren
-  EvidenceEidRoute: typeof EvidenceEidRoute
+  RIdRoute: typeof RIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -177,11 +78,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/search': {
-      id: '/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof SearchRouteImport
+    '/record': {
+      id: '/record'
+      path: '/record'
+      fullPath: '/record'
+      preLoaderRoute: typeof RecordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -191,89 +92,21 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/capture/photo': {
-      id: '/capture/photo'
-      path: '/capture/photo'
-      fullPath: '/capture/photo'
-      preLoaderRoute: typeof CapturePhotoRouteImport
+    '/r/$id': {
+      id: '/r/$id'
+      path: '/r/$id'
+      fullPath: '/r/$id'
+      preLoaderRoute: typeof RIdRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/capture/text': {
-      id: '/capture/text'
-      path: '/capture/text'
-      fullPath: '/capture/text'
-      preLoaderRoute: typeof CaptureTextRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/capture/voice': {
-      id: '/capture/voice'
-      path: '/capture/voice'
-      fullPath: '/capture/voice'
-      preLoaderRoute: typeof CaptureVoiceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/case/$id': {
-      id: '/case/$id'
-      path: '/case/$id'
-      fullPath: '/case/$id'
-      preLoaderRoute: typeof CaseIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/evidence/$eid': {
-      id: '/evidence/$eid'
-      path: '/evidence/$eid'
-      fullPath: '/evidence/$eid'
-      preLoaderRoute: typeof EvidenceEidRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/case/$id/': {
-      id: '/case/$id/'
-      path: '/'
-      fullPath: '/case/$id/'
-      preLoaderRoute: typeof CaseIdIndexRouteImport
-      parentRoute: typeof CaseIdRoute
-    }
-    '/case/$id/note/$nid': {
-      id: '/case/$id/note/$nid'
-      path: '/note/$nid'
-      fullPath: '/case/$id/note/$nid'
-      preLoaderRoute: typeof CaseIdNoteNidRouteImport
-      parentRoute: typeof CaseIdRoute
-    }
-    '/case/$id/subject/$sid': {
-      id: '/case/$id/subject/$sid'
-      path: '/subject/$sid'
-      fullPath: '/case/$id/subject/$sid'
-      preLoaderRoute: typeof CaseIdSubjectSidRouteImport
-      parentRoute: typeof CaseIdRoute
     }
   }
 }
 
-interface CaseIdRouteChildren {
-  CaseIdIndexRoute: typeof CaseIdIndexRoute
-  CaseIdNoteNidRoute: typeof CaseIdNoteNidRoute
-  CaseIdSubjectSidRoute: typeof CaseIdSubjectSidRoute
-}
-
-const CaseIdRouteChildren: CaseIdRouteChildren = {
-  CaseIdIndexRoute: CaseIdIndexRoute,
-  CaseIdNoteNidRoute: CaseIdNoteNidRoute,
-  CaseIdSubjectSidRoute: CaseIdSubjectSidRoute,
-}
-
-const CaseIdRouteWithChildren =
-  CaseIdRoute._addFileChildren(CaseIdRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  SearchRoute: SearchRoute,
+  RecordRoute: RecordRoute,
   SettingsRoute: SettingsRoute,
-  CapturePhotoRoute: CapturePhotoRoute,
-  CaptureTextRoute: CaptureTextRoute,
-  CaptureVoiceRoute: CaptureVoiceRoute,
-  CaseIdRoute: CaseIdRouteWithChildren,
-  EvidenceEidRoute: EvidenceEidRoute,
+  RIdRoute: RIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,109 +1,138 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { Box } from "lucide-react";
-import { useCases, useSealSummary } from "@/data/hooks";
-import type { CaseRec } from "@/data/db";
-import { isEncrypted } from "@/data/seal";
-import { Card, EmptyState, Hexagon, SectionLabel, ShieldLink, StatusPill, useLongPress } from "@/components/at/ui";
-import { CaseActionsSheet, CaseCardMeta } from "@/components/at/CaseSheets";
-import { useApp } from "@/store/app";
+import { useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Search, Settings, X } from "lucide-react";
+import { ConnectCard } from "@/components/ConnectCard";
+import { RecordButton } from "@/components/RecordButton";
+import { StatusLine, usePhase } from "@/components/Status";
+import { Hexagon, Highlight, OfflineChip, SW } from "@/components/ui";
+import type { RecordingRow } from "@/lib/db";
+import { length, when } from "@/lib/format";
+import { useConnected, useRecordings } from "@/lib/hooks";
+import { displayTitle, fillSpeakers, matches, searchTerms, snippet, speakerCount } from "@/lib/notes";
+import { useSync } from "@/lib/sync";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Alien Technology · Case Vaults" },
-      { name: "description", content: "Private Investigator Notes. Sealed case vaults stored on this device only." },
-      { property: "og:title", content: "Alien Technology · Case Vaults" },
-      { property: "og:description", content: "Private Investigator Notes. A phone-first field intelligence notebook." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-  }),
-  component: Vault,
+  head: () => ({ meta: [{ title: "Alien Technology" }] }),
+  component: Home,
 });
 
-function CaseCard({ c, onActions }: { c: CaseRec; onActions: () => void }) {
-  const navigate = useNavigate();
-  const { handlers, fired } = useLongPress(onActions);
+function Home() {
+  const rows = useRecordings();
+  const connected = useConnected();
+  const codeRefused = useSync((s) => s.codeRefused);
+  const [query, setQuery] = useState("");
+  const terms = useMemo(() => searchTerms(query), [query]);
+  const shown = useMemo(() => (rows ?? []).filter((r) => matches(r, terms)), [rows, terms]);
+  const any = (rows?.length ?? 0) > 0;
+
   return (
-    <Card
-      role="button"
-      tabIndex={0}
-      {...handlers}
-      onClick={() => {
-        if (fired.current) return;
-        navigate({ to: "/case/$id", params: { id: c.id } });
-      }}
-      onKeyDown={(e) => e.key === "Enter" && navigate({ to: "/case/$id", params: { id: c.id } })}
-      className="anim-fade flex min-h-[84px] cursor-pointer select-none items-start gap-4 px-4 py-3.5 transition-colors active:bg-surface-raised"
-      style={{ WebkitTouchCallout: "none" }}
-    >
-      <Box size={34} strokeWidth={1.25} className="mt-0.5 shrink-0 text-amber" />
-      <div className="min-w-0 flex-1">
-        {/* The pill sits level with the first line of the codename; the codename wraps and is never cut. */}
-        <div className="flex items-start gap-3">
-          <div className="codename min-w-0 flex-1 pt-[3px] text-[16px] leading-snug break-words text-ink">{c.codename}</div>
-          <StatusPill status={c.status} encrypted={isEncrypted(c)} />
+    <div className="pb-safe">
+      <header className="pt-safe px-4">
+        <div className="flex h-14 items-center gap-2.5">
+          <Hexagon className="size-7" />
+          <span className="font-serif text-[22px] tracking-tight text-ink">Alien Technology</span>
+          <span className="flex-1" />
+          <OfflineChip />
+          <Link to="/settings" aria-label="Settings" className="tap inline-flex items-center justify-center text-ink-muted active:text-amber">
+            <Settings size={23} strokeWidth={SW} />
+          </Link>
         </div>
-        <CaseCardMeta c={c} />
-      </div>
-    </Card>
+      </header>
+
+      <section className="flex flex-col items-center px-6 pt-7 pb-9">
+        <RecordButton />
+        <p className="mt-5 font-serif text-[24px] leading-none text-ink">Tap to record</p>
+        <p className="mt-2.5 text-[13.5px] text-ink-muted">Let everyone know you're recording.</p>
+      </section>
+
+      {!connected && <ConnectCard className="mx-4 mb-7" />}
+      {connected && codeRefused && (
+        <Link to="/settings" className="card-at mx-4 mb-7 block border-pin/40 px-4 py-3 text-[14px] text-ink">
+          Your server stopped accepting the access code on this phone. <span className="text-amber">Open Settings</span> to enter it
+          again.
+        </Link>
+      )}
+
+      <section className="px-4">
+        {any && (
+          <div className="relative mb-5">
+            <Search size={18} strokeWidth={SW} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-faint" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search recordings"
+              aria-label="Search recordings"
+              className="field pr-10 pl-10 text-[15px]"
+            />
+            {query && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setQuery("")}
+                className="tap absolute top-1/2 right-0.5 grid -translate-y-1/2 place-items-center text-ink-muted"
+              >
+                <X size={18} strokeWidth={SW} />
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="section-label mb-3">{terms.length ? `${shown.length} found` : "Recordings"}</div>
+
+        {rows === undefined ? null : !any ? (
+          <div className="card-at px-5 py-8 text-center">
+            <p className="font-serif text-[20px] text-ink">No recordings yet</p>
+            <p className="mx-auto mt-2 max-w-[30ch] text-[14px] leading-relaxed text-ink-muted">
+              Record a conversation and it shows up here with a written transcript and notes.
+            </p>
+          </div>
+        ) : shown.length === 0 ? (
+          <p className="px-1 py-6 text-[14px] text-ink-muted">Nothing matches "{query.trim()}".</p>
+        ) : (
+          <ul className="space-y-3">
+            {shown.map((r) => (
+              <li key={r.id}>
+                <RecordingItem row={r} terms={terms} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
   );
 }
 
-function Vault() {
-  const cases = useCases();
-  const seal = useSealSummary();
-  // Literal: shown only while every sealed case holding records is encrypted.
-  const encryptedLine = !!seal && seal.encrypted > 0 && seal.readableInSealed === 0;
-  const setNewCase = useApp((s) => s.setNewCaseOpen);
-  const [sel, setSel] = useState<CaseRec | null>(null);
+function RecordingItem({ row, terms }: { row: RecordingRow; terms: string[] }) {
+  const phase = usePhase(row);
+  const names = row.server?.speaker_names ?? {};
+  const summary = row.server?.summary ?? row.server?.notes?.summary ?? "";
+  const speakers = speakerCount(row);
+  const duration = (row.server?.transcript?.duration ?? 0) * 1000 || row.durationMs;
+  const match = snippet(row, terms);
+  const title = displayTitle(row);
 
   return (
-    <div className="px-5">
-      <header className="pt-safe flex items-start gap-3 pt-6">
-        <Hexagon className="mt-1.5 size-9 shrink-0" />
-        <div className="min-w-0 flex-1">
-          <h1 className="font-serif text-[30px] leading-tight font-semibold text-ink">Alien Technology</h1>
-          <p className="text-sm text-ink-muted">Private Investigator Notes</p>
-        </div>
-        <ShieldLink />
-      </header>
-      <p className="mt-4 font-mono text-[11px] leading-relaxed tracking-[0.12em] text-ink-muted">
-        STORED ON THIS DEVICE ONLY
-        {encryptedLine && (
-          <>
-            {"\u00a0· "}
-            <span className="whitespace-nowrap">SEALED CASES ENCRYPTED</span>
-          </>
-        )}
+    <Link to="/r/$id" params={{ id: row.id }} className="card-at block px-4 py-3.5 transition-colors active:bg-surface-raised">
+      <div className="flex items-baseline gap-3">
+        <h3 className="min-w-0 flex-1 truncate font-serif text-[19px] leading-tight text-ink">
+          <Highlight text={title} terms={terms} />
+        </h3>
+        <span className="shrink-0 font-mono text-[12.5px] tabular-nums text-ink-muted">{length(duration)}</span>
+      </div>
+      <p className="mt-1 text-[12.5px] text-ink-muted">
+        {when(row.recordedAt)}
+        {speakers > 0 ? ` · ${speakers} ${speakers === 1 ? "speaker" : "speakers"}` : ""}
       </p>
-
-      <div className="mt-8 mb-3 flex items-center justify-between">
-        <SectionLabel>Sealed Case Vaults</SectionLabel>
-        {cases && cases.length > 0 && (
-          <button className="tap -mr-2 px-2 font-mono text-[11px] uppercase tracking-[0.12em] text-ink-muted active:text-amber" onClick={() => setNewCase(true)}>
-            New case
-          </button>
-        )}
-      </div>
-
-      {cases && cases.length === 0 && (
-        <EmptyState
-          title="No case vaults yet."
-          action={
-            <button className="btn btn-outline" onClick={() => setNewCase(true)}>
-              Open a case
-            </button>
-          }
-        />
+      {match ? (
+        <p className="mt-2 line-clamp-2 text-[14px] leading-snug text-ink/85">
+          <Highlight text={match} terms={terms} />
+        </p>
+      ) : phase.kind === "ready" ? (
+        summary && <p className="mt-2 line-clamp-2 text-[14px] leading-snug text-ink/85">{fillSpeakers(summary, names)}</p>
+      ) : (
+        <StatusLine row={row} className="mt-2.5" />
       )}
-      <div className="space-y-3">
-        {cases?.map((c) => <CaseCard key={c.id} c={c} onActions={() => setSel(c)} />)}
-      </div>
-      {cases && cases.length > 0 && <p className="mt-5 text-center font-mono text-[10.5px] tracking-[0.1em] text-ink-faint">PRESS AND HOLD A CASE FOR OPTIONS</p>}
-
-      <CaseActionsSheet c={sel} open={!!sel} onClose={() => setSel(null)} />
-    </div>
+    </Link>
   );
 }

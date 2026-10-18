@@ -40,6 +40,7 @@
   --color-string: var(--string);
   --color-pin: var(--pin);
   --color-redact: var(--redact);
+  --color-on-amber: var(--on-amber);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -314,6 +315,57 @@ html[data-grain="on"] body::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Audio position slider */
+.at-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+.at-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--amber) var(--fill, 0%), var(--line-strong) var(--fill, 0%));
+}
+.at-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 5px var(--amber-fill);
+}
+.at-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+.at-range::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--amber);
+}
+.at-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--amber);
+}
+.at-range:focus-visible {
+  outline: none;
+}
+.at-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 6px var(--amber-line);
+}
+
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
 }
 
 .no-scrollbar::-webkit-scrollbar {
