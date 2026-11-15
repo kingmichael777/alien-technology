@@ -1,11 +1,11 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
-@import "@fontsource/cormorant-garamond/600.css";
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 @import "@fontsource/ibm-plex-sans/400.css";
 @import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -16,7 +16,7 @@
  */
 
 @theme inline {
-  --font-serif: "Cormorant Garamond", "Times New Roman", serif;
+  --font-display: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --font-sans: "IBM Plex Sans", system-ui, sans-serif;
 
@@ -65,22 +65,23 @@
 
 :root {
   --radius: 14px;
-  --bg: #0a0b0c;
-  --surface: #121314;
-  --surface-raised: #17181a;
-  --line: #232427;
-  --line-strong: #2e3033;
-  --text: #eee9e3;
-  --text-muted: #8c8c8a;
-  --text-faint: #5c5d5f;
-  --amber: #e9a544;
-  --amber-bright: #f0ac41;
-  --amber-line: rgba(233, 165, 68, 0.35);
-  --amber-fill: rgba(233, 165, 68, 0.1);
-  --string: #b3362f;
-  --pin: #d0453b;
+  /* White armor, black detail. */
+  --bg: #ffffff;
+  --surface: #f5f5f6;
+  --surface-raised: #ecedef;
+  --line: #e1e2e4;
+  --line-strong: #c6c8cb;
+  --text: #0a0a0a;
+  --text-muted: #5d6064;
+  --text-faint: #979a9e;
+  --amber: #0a0a0a;
+  --amber-bright: #2b2b2b;
+  --amber-line: rgba(10, 10, 10, 0.3);
+  --amber-fill: rgba(10, 10, 10, 0.05);
+  --string: #c81e1e;
+  --pin: #c81e1e;
   --redact: #000000;
-  --on-amber: #0a0b0c;
+  --on-amber: #ffffff;
   --photo-filter: none;
 
   --background: var(--bg);
@@ -106,17 +107,20 @@
 
 html[data-mode="contrast"] {
   --bg: #000000;
-  --surface: #0a0a0a;
-  --surface-raised: #121212;
-  --line: #555555;
-  --line-strong: #777777;
+  --surface: #0c0c0c;
+  --surface-raised: #151515;
+  --line: #2a2a2a;
+  --line-strong: #3d3d3d;
   --text: #ffffff;
-  --text-muted: #c4c4c4;
-  --text-faint: #9a9a9a;
-  --amber: #ffb547;
-  --amber-bright: #ffb547;
-  --amber-line: rgba(255, 181, 71, 0.65);
-  --amber-fill: rgba(255, 181, 71, 0.16);
+  --text-muted: #a8a8a8;
+  --text-faint: #6e6e6e;
+  --amber: #ffffff;
+  --amber-bright: #d9d9d9;
+  --amber-line: rgba(255, 255, 255, 0.4);
+  --amber-fill: rgba(255, 255, 255, 0.08);
+  --string: #ff5a4f;
+  --pin: #ff5a4f;
+  --on-amber: #000000;
 }
 
 html[data-mode="night"] {
@@ -189,7 +193,7 @@ html[data-grain="on"] body::after {
 }
 
 @utility codename {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.02em;

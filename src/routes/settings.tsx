@@ -31,8 +31,8 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
 }
 
 const MODES: { id: DisplayMode; label: string }[] = [
-  { id: "standard", label: "Standard" },
-  { id: "contrast", label: "High contrast" },
+  { id: "standard", label: "White" },
+  { id: "contrast", label: "Black" },
   { id: "night", label: "Night" },
 ];
 
@@ -51,7 +51,7 @@ function SettingsScreen() {
 
   return (
     <div className="pb-safe">
-      <PageHeader left={<BackLink />} title={<span className="font-serif text-[22px] text-ink">Settings</span>} />
+      <PageHeader left={<BackLink />} title={<span className="font-display font-semibold tracking-tight text-[22px] text-ink">Settings</span>} />
       <div className="px-4 pb-12">
         <Group label="Your server">
           {connected && !codeRefused ? (
@@ -88,7 +88,7 @@ function SettingsScreen() {
                 onClick={() => void setSetting("displayMode", m.id)}
                 className={cn(
                   "h-11 rounded-[12px] border text-[13.5px] transition-colors",
-                  mode === m.id ? "border-amber-line bg-amber-fill text-amber" : "border-line-strong text-ink-muted",
+                  mode === m.id ? "border-amber bg-amber text-on-amber" : "border-line-strong text-ink-muted",
                 )}
               >
                 {m.label}

@@ -93,7 +93,7 @@ export function ConnectCard({ className, compact }: { className?: string; compac
             </button>
           )}
           <button type="submit" className="btn btn-primary flex-1" disabled={busy || !value.trim()}>
-            {busy ? <Spinner className="border-black/20 border-t-black" /> : null}
+            {busy ? <Spinner className="border-on-amber/25 border-t-on-amber" /> : null}
             Connect
           </button>
         </div>

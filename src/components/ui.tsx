@@ -6,10 +6,12 @@ import { cn } from "@/lib/utils";
 
 export const SW = 1.5;
 
-export function Hexagon({ className }: { className?: string }) {
+/** The Alien Technology mark: an A with a record dot. */
+export function Mark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 40 40" className={cn("text-amber", className)} fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
-      <path d="M20 3.5 34.3 11.75v16.5L20 36.5 5.7 28.25v-16.5Z" strokeLinejoin="round" />
+    <svg viewBox="72 72 368 360" className={cn("text-ink", className)} fill="currentColor" aria-hidden>
+      <path d="M256 92 420 412h-74L256 236 166 412H92Z" />
+      <circle cx="256" cy="356" r="36" />
     </svg>
   );
 }

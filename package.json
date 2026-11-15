@@ -12,7 +12,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@fontsource/cormorant-garamond": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.3.0",
     "@tanstack/react-router": "1.170.41",

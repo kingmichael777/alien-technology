@@ -5,7 +5,7 @@ import { AddRecording } from "@/components/AddRecording";
 import { ConnectCard } from "@/components/ConnectCard";
 import { RecordButton } from "@/components/RecordButton";
 import { StatusLine, usePhase } from "@/components/Status";
-import { Hexagon, Highlight, OfflineChip, SW } from "@/components/ui";
+import { Mark, Highlight, OfflineChip, SW } from "@/components/ui";
 import type { RecordingRow } from "@/lib/db";
 import { length, when } from "@/lib/format";
 import { useConnected, useRecordings } from "@/lib/hooks";
@@ -30,8 +30,8 @@ function Home() {
     <div className="pb-safe">
       <header className="pt-safe px-4">
         <div className="flex h-14 items-center gap-2.5">
-          <Hexagon className="size-7" />
-          <span className="font-serif text-[22px] tracking-tight text-ink">Alien Technology</span>
+          <Mark className="size-6" />
+          <span className="font-display text-[15px] font-semibold tracking-[0.16em] text-ink uppercase">Alien Technology</span>
           <span className="flex-1" />
           <OfflineChip />
           <Link to="/settings" aria-label="Settings" className="tap inline-flex items-center justify-center text-ink-muted active:text-amber">
@@ -42,7 +42,7 @@ function Home() {
 
       <section className="flex flex-col items-center px-6 pt-7 pb-9">
         <RecordButton />
-        <p className="mt-5 font-serif text-[24px] leading-none text-ink">Tap to record</p>
+        <p className="mt-5 font-display font-semibold tracking-tight text-[24px] leading-none text-ink">Tap to record</p>
         <p className="mt-2.5 text-[13.5px] text-ink-muted">Let everyone know you're recording.</p>
         <AddRecording />
       </section>
@@ -50,7 +50,7 @@ function Home() {
       {!connected && <ConnectCard className="mx-4 mb-7" />}
       {connected && codeRefused && (
         <Link to="/settings" className="card-at mx-4 mb-7 block border-pin/40 px-4 py-3 text-[14px] text-ink">
-          Your server stopped accepting the access code on this phone. <span className="text-amber">Open Settings</span> to enter it
+          Your server stopped accepting the access code on this phone. <span className="font-medium underline underline-offset-2">Open Settings</span> to enter it
           again.
         </Link>
       )}
@@ -84,7 +84,7 @@ function Home() {
 
         {rows === undefined ? null : !any ? (
           <div className="card-at px-5 py-8 text-center">
-            <p className="font-serif text-[20px] text-ink">No recordings yet</p>
+            <p className="font-display font-semibold tracking-tight text-[20px] text-ink">No recordings yet</p>
             <p className="mx-auto mt-2 max-w-[30ch] text-[14px] leading-relaxed text-ink-muted">
               Record a conversation and it shows up here with a written transcript and notes.
             </p>
@@ -117,7 +117,7 @@ function RecordingItem({ row, terms }: { row: RecordingRow; terms: string[] }) {
   return (
     <Link to="/r/$id" params={{ id: row.id }} className="card-at block px-4 py-3.5 transition-colors active:bg-surface-raised">
       <div className="flex items-baseline gap-3">
-        <h3 className="min-w-0 flex-1 truncate font-serif text-[19px] leading-tight text-ink">
+        <h3 className="min-w-0 flex-1 truncate font-display font-semibold tracking-tight text-[19px] leading-tight text-ink">
           <Highlight text={title} terms={terms} />
         </h3>
         <span className="shrink-0 font-mono text-[12.5px] tabular-nums text-ink-muted">{length(duration)}</span>

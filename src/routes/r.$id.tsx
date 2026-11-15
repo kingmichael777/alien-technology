@@ -43,7 +43,7 @@ function RecordingScreen() {
       <div className="pb-safe">
         <PageHeader left={<BackLink />} title={null} />
         <div className="px-6 py-16 text-center">
-          <p className="font-serif text-[22px] text-ink">This recording isn't here</p>
+          <p className="font-display font-semibold tracking-tight text-[22px] text-ink">This recording isn't here</p>
           <p className="mt-2 text-[14px] text-ink-muted">It may have been deleted, or this phone isn't connected to your server.</p>
         </div>
       </div>
@@ -113,7 +113,7 @@ function Recording({ row }: { row: RecordingRow }) {
 
       <div className="px-4 pt-5">
         <button type="button" onClick={() => setRenaming(true)} className="group block w-full text-left" aria-label="Rename recording">
-          <h1 className="font-serif text-[28px] leading-[1.1] text-ink">
+          <h1 className="font-display font-semibold tracking-tight text-[28px] leading-[1.1] text-ink">
             {title}
             <Pencil size={15} strokeWidth={SW} className="ml-2 inline-block -translate-y-1 text-ink-faint" />
           </h1>

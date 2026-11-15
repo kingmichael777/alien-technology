@@ -102,7 +102,7 @@ function RecordScreen() {
           >
             <Mic size={44} strokeWidth={1.75} />
           </button>
-          <p className="mt-6 font-serif text-[24px] text-ink">Tap to start recording</p>
+          <p className="mt-6 font-display font-semibold tracking-tight text-[24px] text-ink">Tap to start recording</p>
           <p className="mt-2 text-[13.5px] text-ink-muted">Let everyone know you're recording.</p>
         </div>
       ) : (
@@ -145,7 +145,7 @@ function RecordScreen() {
               className="grid size-[88px] place-items-center rounded-full bg-amber text-[var(--on-amber)] shadow-[0_0_40px_var(--amber-line)] active:bg-amber-bright disabled:opacity-40"
             >
               {state === "saving" || state === "starting" ? (
-                <Spinner className="size-7 border-black/20 border-t-black" />
+                <Spinner className="size-7 border-on-amber/25 border-t-on-amber" />
               ) : (
                 <Square size={30} strokeWidth={2} fill="currentColor" />
               )}

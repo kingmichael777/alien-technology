@@ -14,7 +14,7 @@ export function Waveform() {
     let raf = 0;
     let last = 0;
     const buf = new Uint8Array(analyser?.fftSize ?? 1024);
-    const color = getComputedStyle(document.documentElement).getPropertyValue("--amber-bright").trim() || "#F0AC41";
+    const color = getComputedStyle(document.documentElement).getPropertyValue("--amber-bright").trim() || "#0A0A0A";
     const draw = (t: number) => {
       raf = requestAnimationFrame(draw);
       const c = ref.current;
@@ -48,8 +48,6 @@ export function Waveform() {
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       g.clearRect(0, 0, w, h);
       g.fillStyle = color;
-      g.shadowColor = color;
-      g.shadowBlur = 6;
       const H = hist.current;
       const mid = h / 2;
       for (let i = 0; i < Math.ceil(w / step); i++) {

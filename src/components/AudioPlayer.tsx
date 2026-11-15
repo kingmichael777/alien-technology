@@ -176,7 +176,7 @@ export function AudioPlayer({ row, durationMs }: { row: RecordingRow; durationMs
           className="grid size-12 shrink-0 place-items-center rounded-full bg-amber text-[var(--on-amber)] active:bg-amber-bright"
         >
           {loading && !src ? (
-            <Spinner className="size-5 border-black/20 border-t-black" />
+            <Spinner className="size-5 border-on-amber/25 border-t-on-amber" />
           ) : playing ? (
             <Pause size={22} strokeWidth={2} fill="currentColor" />
           ) : (

@@ -75,6 +75,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset["mode"] = mode;
+    // The phone's top bar follows the screen color.
+    const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+    if (bg) document.querySelector('meta[name="theme-color"]')?.setAttribute("content", bg);
   }, [mode]);
 
   return (
