@@ -47,4 +47,4 @@ npm run build      # typecheck and production build into dist/
 ```
 Server function tests: `deno test supabase/functions/alien-tech/lib_test.ts`.
 
-The app deploys to Netlify (`npm run build`, publish `dist`). The function deploys to Supabase with JWT verification off (it checks the session itself).
+The app deploys to Netlify (`npm run build`, publish `dist`). The Netlify project is not linked to this repository: a push to `main` publishes nothing. Each release is uploaded from a checkout of `main` and built by Netlify. The function deploys to Supabase with JWT verification off (it checks the session itself).
