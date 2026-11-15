@@ -65,7 +65,7 @@ function Home() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search recordings"
               aria-label="Search recordings"
-              className="field pr-10 pl-10 text-[15px]"
+              className="field pr-10 pl-10 text-[16px]"
             />
             {query && (
               <button

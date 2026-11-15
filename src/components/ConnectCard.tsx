@@ -58,7 +58,7 @@ export function ConnectCard({ className, compact }: { className?: string; compac
         }}
       >
         <input
-          className="field font-mono text-[15px] tracking-wide"
+          className="field font-mono text-[16px] tracking-wide"
           placeholder="ALIEN-XXXXX-XXXXX-XXXXX-XXXXX"
           value={value}
           onChange={(e) => {
