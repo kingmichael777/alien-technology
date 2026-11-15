@@ -15,11 +15,25 @@
 // each stage. A stage that dies is noticed and can be retried; the audio and
 // any finished transcript are never thrown away by a failure.
 //
-// Every request from the app carries the access code in the x-alien-key
-// header. Only the code's SHA-256 is kept on the server (ALIEN_TECH_KEY_SHA256).
+// Each person has an account and sees only their own recordings. A phone
+// signs in with an email and a 6-digit code sent to it (auth_start,
+// auth_verify) and then sends its session token in the x-alien-session header
+// with every request. The master account adds, pauses and removes accounts.
+// accounts.ts holds all of that.
 
-import { config } from "./_shared/config.ts";
-import { canonicalCode, noSpeechNotes } from "./lib.ts";
+import {
+  type Account,
+  accountAdd,
+  accountRemove,
+  accountsList,
+  accountUpdate,
+  authorize,
+  authStart,
+  authVerify,
+  publicAccount,
+  signOut,
+} from "./accounts.ts";
+import { hex, noSpeechNotes, same } from "./lib.ts";
 import { transcribe, writeNotes } from "./ai.ts";
 import {
   baseMime,
@@ -31,6 +45,7 @@ import {
   light,
   listObjects,
   mustGet,
+  mustOwn,
   partPaths,
   patch,
   Problem,
@@ -56,12 +71,12 @@ const MAX_PART_BYTES = 50 * 1024 * 1024; // the bucket's per-object limit
 const MAX_TOTAL_BYTES = 200 * 1024 * 1024; // what one worker can join in memory
 const MAX_PARTS = 8;
 const STALE_MS = 8 * 60 * 1000; // longer than any worker can live
-const VERSION = "2";
+const VERSION = "3";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "content-type, x-alien-key",
+  "Access-Control-Allow-Headers": "content-type, x-alien-key, x-alien-session",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -90,31 +105,45 @@ Deno.serve(async (req) => {
       return reply(202, { ok: true });
     }
 
-    if (!(await authorized(req))) return reply(401, { error: "That access code isn't right." });
+    // Signing in needs no session.
+    if (action === "auth_start") return reply(200, await authStart(body));
+    if (action === "auth_verify") return reply(200, await authVerify(body));
+
+    const me = await authorize(req);
 
     switch (action) {
       case "ping":
-        return reply(200, { ok: true, version: VERSION });
+        return reply(200, { ok: true, version: VERSION, account: publicAccount(me) });
+      case "sign_out":
+        return reply(200, await signOut(req));
       case "begin":
-        return reply(200, await begin(body));
+        return reply(200, await begin(body, me));
       case "uploaded":
-        return reply(200, await uploaded(body));
+        return reply(200, await uploaded(body, me));
       case "process":
-        return reply(200, await retry(body));
+        return reply(200, await retry(body, me));
       case "renote":
-        return reply(200, await renote(body));
+        return reply(200, await renote(body, me));
       case "list":
-        return reply(200, await list());
+        return reply(200, await list(me));
       case "get":
-        return reply(200, await getOne(body));
+        return reply(200, await getOne(body, me));
       case "get_many":
-        return reply(200, await getMany(body));
+        return reply(200, await getMany(body, me));
       case "update":
-        return reply(200, await update(body));
+        return reply(200, await update(body, me));
       case "audio":
-        return reply(200, await audio(body));
+        return reply(200, await audio(body, me));
       case "delete":
-        return reply(200, await remove(body));
+        return reply(200, await remove(body, me));
+      case "accounts_list":
+        return reply(200, await accountsList(me));
+      case "account_add":
+        return reply(200, await accountAdd(body, me));
+      case "account_update":
+        return reply(200, await accountUpdate(body, me));
+      case "account_remove":
+        return reply(200, await accountRemove(body, me, removeRecording));
       default:
         return reply(400, { error: "Unknown action." });
     }
@@ -132,22 +161,7 @@ function reply(status: number, body: unknown): Response {
   });
 }
 
-// ---------------------------------------------------------------- access
-
-let keyHash: string | undefined;
-
-async function authorized(req: Request): Promise<boolean> {
-  const given = req.headers.get("x-alien-key");
-  if (!given) return false;
-  keyHash ??= (await config("ALIEN_TECH_KEY_SHA256"))?.trim().toLowerCase();
-  if (!keyHash) return false;
-  return same(await sha256(canonicalCode(given)), keyHash);
-}
-
-async function sha256(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return hex(digest);
-}
+// ---------------------------------------------------------------- hand-offs
 
 // Background hand-offs between stages are signed with the service key.
 async function internalToken(id: string, step: Step): Promise<string> {
@@ -161,20 +175,9 @@ async function internalToken(id: string, step: Step): Promise<string> {
   return hex(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`alien-tech:${id}:${step}`)));
 }
 
-function hex(buf: ArrayBuffer): string {
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function same(a: string, b: string): boolean {
-  if (a.length !== b.length || a.length === 0) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
 // ---------------------------------------------------------------- actions
 
-async function begin(body: Record<string, unknown>) {
+async function begin(body: Record<string, unknown>, me: Account) {
   const id = uuid(body.id);
   const mime = baseMime(body.mime_type);
   const ext = EXTENSIONS[mime];
@@ -187,6 +190,7 @@ async function begin(body: Record<string, unknown>) {
   const timeZone = zone(body.time_zone);
 
   const existing = await getRow(id);
+  if (existing && existing.owner_id !== me.id) throw new Problem(404, "That recording wasn't found.");
   if (existing && existing.status !== "uploading") {
     return { ...light(existing), uploads: [] };
   }
@@ -200,6 +204,7 @@ async function begin(body: Record<string, unknown>) {
     },
     body: JSON.stringify({
       id,
+      owner_id: me.id,
       recorded_at: recordedAt,
       duration_ms: durationMs,
       mime_type: mime,
@@ -220,9 +225,9 @@ async function begin(body: Record<string, unknown>) {
   return { ...light(row), uploads, content_type: mime };
 }
 
-async function uploaded(body: Record<string, unknown>) {
+async function uploaded(body: Record<string, unknown>, me: Account) {
   const id = uuid(body.id);
-  const row = await mustGet(id);
+  const row = await mustOwn(id, me.id);
   if (row.status !== "uploading") return light(row);
 
   const objects = await listObjects(id);
@@ -242,9 +247,9 @@ async function uploaded(body: Record<string, unknown>) {
   return light(next ?? (await mustGet(id)));
 }
 
-async function retry(body: Record<string, unknown>) {
+async function retry(body: Record<string, unknown>, me: Account) {
   const id = uuid(body.id);
-  const row = await reap(await mustGet(id));
+  const row = await reap(await mustOwn(id, me.id));
   if (row.status === "uploading") throw new Problem(409, "This recording hasn't finished uploading.");
   if (row.status === "ready" || row.status === "processing") return light(row);
 
@@ -264,9 +269,9 @@ async function retry(body: Record<string, unknown>) {
   return light(next ?? row);
 }
 
-async function renote(body: Record<string, unknown>) {
+async function renote(body: Record<string, unknown>, me: Account) {
   const id = uuid(body.id);
-  const row = await reap(await mustGet(id));
+  const row = await reap(await mustOwn(id, me.id));
   if (!row.transcript || row.transcript.segments.length === 0) {
     throw new Problem(409, "There's no transcript to write notes from yet.");
   }
@@ -300,8 +305,8 @@ const LIST_FIELDS = [
   "processing_started_at",
 ].join(",");
 
-async function list() {
-  const res = await fetch(`${REST}?select=${LIST_FIELDS}&order=recorded_at.desc&limit=1000`, {
+async function list(me: Account) {
+  const res = await fetch(`${REST}?owner_id=eq.${me.id}&select=${LIST_FIELDS}&order=recorded_at.desc&limit=1000`, {
     headers: serviceHeaders(),
   });
   if (!res.ok) throw new Error(`list ${res.status}: ${await res.text()}`);
@@ -331,22 +336,24 @@ async function list() {
   return { recordings: out };
 }
 
-async function getOne(body: Record<string, unknown>) {
-  const row = await reap(await mustGet(uuid(body.id)));
+async function getOne(body: Record<string, unknown>, me: Account) {
+  const row = await reap(await mustOwn(uuid(body.id), me.id));
   return { recording: full(row) };
 }
 
 // Full recordings for a list of ids, for a phone catching up on what it hasn't seen.
-async function getMany(body: Record<string, unknown>) {
+async function getMany(body: Record<string, unknown>, me: Account) {
   const ids = (Array.isArray(body.ids) ? body.ids : []).slice(0, 50).map(uuid);
   if (ids.length === 0) return { recordings: [] };
-  const res = await fetch(`${REST}?id=in.(${ids.join(",")})&select=*`, { headers: serviceHeaders() });
+  const res = await fetch(`${REST}?owner_id=eq.${me.id}&id=in.(${ids.join(",")})&select=*`, {
+    headers: serviceHeaders(),
+  });
   if (!res.ok) throw new Error(`select many ${res.status}: ${await res.text()}`);
   const rows = (await res.json()) as Row[];
   return { recordings: rows.map(full) };
 }
 
-async function update(body: Record<string, unknown>) {
+async function update(body: Record<string, unknown>, me: Account) {
   const id = uuid(body.id);
   const changes: Partial<Row> = {};
   if ("title" in body) {
@@ -367,27 +374,35 @@ async function update(body: Record<string, unknown>) {
     changes.speaker_names = clean;
   }
   if (Object.keys(changes).length === 0) throw new Problem(400, "Nothing to change.");
-  const row = await patch(id, changes);
+  const row = await patch(id, changes, `&owner_id=eq.${me.id}`);
   if (!row) throw new Problem(404, "That recording wasn't found.");
   return { recording: full(row) };
 }
 
-async function audio(body: Record<string, unknown>) {
-  const row = await mustGet(uuid(body.id));
+async function audio(body: Record<string, unknown>, me: Account) {
+  const row = await mustOwn(uuid(body.id), me.id);
   if (row.status === "uploading") throw new Problem(409, "This recording hasn't finished uploading.");
   const urls = [];
   for (const path of partPaths(row)) urls.push(await signDownload(path, 3600));
   return { urls, mime_type: row.mime_type };
 }
 
-async function remove(body: Record<string, unknown>) {
+async function remove(body: Record<string, unknown>, me: Account) {
   const id = uuid(body.id);
+  const row = await getRow(id);
+  // Already gone is fine. Someone else's recording answers the same and is left alone.
+  if (!row || row.owner_id !== me.id) return { ok: true };
+  await removeRecording(id);
+  return { ok: true };
+}
+
+// Deletes one recording's audio and its row.
+async function removeRecording(id: string): Promise<void> {
   const objects = await listObjects(id);
   if (objects.length > 0) await removeObjects(objects.map((o) => `${id}/${o.name}`));
   const res = await fetch(`${REST}?id=eq.${id}`, { method: "DELETE", headers: serviceHeaders() });
   if (!res.ok) throw new Error(`delete ${res.status}: ${await res.text()}`);
   await res.body?.cancel();
-  return { ok: true };
 }
 
 // ---------------------------------------------------------------- processing

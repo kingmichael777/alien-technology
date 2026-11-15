@@ -6,21 +6,9 @@ import { useSetting } from "@/lib/hooks";
 import { registerServiceWorker } from "@/lib/pwa";
 import { recoverInterrupted, useRecorder } from "@/lib/recorder";
 import { startSync } from "@/lib/sync";
-import { connectWith } from "./ConnectCard";
 import { RecordingBanner } from "./RecordButton";
 
 export type DisplayMode = "standard" | "contrast" | "night";
-
-/** A link like https://alien-technology.netlify.app/#connect=ALIEN-... connects this phone in one tap. */
-async function connectFromLink() {
-  const m = location.hash.match(/^#connect=(.+)$/);
-  if (!m) return;
-  // Take the code out of the address bar and history right away.
-  history.replaceState(null, "", location.pathname + location.search);
-  const problem = await connectWith(decodeURIComponent(m[1]));
-  if (problem) toast(problem);
-  else toast("This phone is connected to your server.");
-}
 
 /** When a new version of the app takes over, reload into it, waiting until no recording is running. */
 function reloadOnUpdate() {
@@ -50,7 +38,6 @@ async function boot() {
   booted = true;
   reloadOnUpdate();
   void registerServiceWorker();
-  void connectFromLink();
   try {
     if (!(await getSetting("persistAsked", false))) {
       await setSetting("persistAsked", true);

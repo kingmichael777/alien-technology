@@ -49,7 +49,7 @@ export function phaseOf(
     return { kind: "failed", text: row.syncError || "This recording couldn't be uploaded.", retry: "upload" };
   }
   if (row.sync === "pending") {
-    if (!ctx.connected) return { kind: "local", text: "Saved on this phone. Connect this phone to get notes.", busy: false };
+    if (!ctx.connected) return { kind: "local", text: "Saved on this phone. Sign in to get notes.", busy: false };
     if (!ctx.online) return { kind: "local", text: "Saved on this phone. It uploads when you're online.", busy: false };
     if (ctx.progress !== undefined) {
       return { kind: "local", text: `Uploading ${Math.min(99, Math.floor(ctx.progress * 100))}%`, busy: true, progress: ctx.progress };
@@ -58,7 +58,7 @@ export function phaseOf(
     return { kind: "local", text: "Waiting to upload", busy: true };
   }
   const s = row.server;
-  if (!s) return { kind: "working", text: "Checking your server" };
+  if (!s) return { kind: "working", text: "Checking the server" };
   switch (s.status) {
     case "uploading":
       return { kind: "working", text: row.hasAudio ? "Finishing the upload" : "Uploading from another device" };
@@ -67,7 +67,7 @@ export function phaseOf(
     case "processing":
       return { kind: "working", text: s.stage === "transcribing" ? "Writing the transcript" : "Writing the notes" };
     case "failed":
-      return { kind: "failed", text: s.error || "Something went wrong on your server.", retry: "server" };
+      return { kind: "failed", text: s.error || "Something went wrong on the server.", retry: "server" };
     default:
       return { kind: "ready" };
   }

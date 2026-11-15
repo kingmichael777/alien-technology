@@ -1,5 +1,5 @@
-// Talks to the alien-tech function on your own Supabase server. Every call
-// carries the access code saved on this phone; nothing else is needed.
+// Talks to the alien-tech function on the server. A phone signs in once with
+// an email and a 6-digit code; every call after that carries its session.
 
 export const SERVER_ORIGIN = "https://nderxvalumzffjbziomd.supabase.co";
 const FUNCTION_URL = `${SERVER_ORIGIN}/functions/v1/alien-tech`;
@@ -75,56 +75,80 @@ export class ApiError extends Error {
   }
 }
 
-// ---------------------------------------------------------------- access code
+// ---------------------------------------------------------------- session
 
-const CODE_KEY = "alien.accessCode";
-
-/** Accepts the code typed with or without dashes, spaces or capitals. */
-export function canonicalCode(input: string): string {
-  const raw = input.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const m = raw.match(/^ALIEN([A-Z0-9]{5})([A-Z0-9]{5})([A-Z0-9]{5})([A-Z0-9]{5})$/);
-  return m ? `ALIEN-${m[1]}-${m[2]}-${m[3]}-${m[4]}` : input.trim();
+export interface Session {
+  token: string;
+  email: string;
+  role: "master" | "member";
 }
 
-export function looksLikeCode(input: string): boolean {
-  return /^ALIEN-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(canonicalCode(input));
-}
+const SESSION_KEY = "alien.session";
+/** Where the shared access code lived before accounts. Cleared on sign-in. */
+const OLD_CODE_KEY = "alien.accessCode";
 
-export function getCode(): string | null {
+export function getSession(): Session | null {
   try {
-    return localStorage.getItem(CODE_KEY);
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as Partial<Session>;
+    if (typeof s.token !== "string" || typeof s.email !== "string") return null;
+    return { token: s.token, email: s.email, role: s.role === "master" ? "master" : "member" };
   } catch {
     return null;
   }
 }
 
-export function setCode(code: string | null) {
+export function setSession(session: Session | null) {
   try {
-    if (code) localStorage.setItem(CODE_KEY, code);
-    else localStorage.removeItem(CODE_KEY);
+    if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    else localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(OLD_CODE_KEY);
   } catch {
-    // Storage blocked: the code lasts only for this visit.
+    // Storage blocked: the sign-in lasts only for this visit.
   }
-  window.dispatchEvent(new Event("alien:code"));
+  window.dispatchEvent(new Event("alien:session"));
 }
+
+export const signedIn = () => !!getSession();
 
 // ---------------------------------------------------------------- calls
 
-async function call<T>(action: string, body: Record<string, unknown> = {}, code = getCode()): Promise<T> {
-  if (!code) throw new ApiError(401, "This phone isn't connected to your server yet.");
+async function send<T>(action: string, body: Record<string, unknown>, token: string | null): Promise<T> {
   let res: Response;
   try {
     res = await fetch(FUNCTION_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-alien-key": code },
+      headers: { "Content-Type": "application/json", ...(token ? { "x-alien-session": token } : {}) },
       body: JSON.stringify({ action, ...body }),
     });
   } catch {
-    throw new ApiError(0, "Couldn't reach your server. Check the connection.");
+    throw new ApiError(0, "Couldn't reach the server. Check the connection.");
   }
   const data = (await res.json().catch(() => ({}))) as { error?: string };
-  if (!res.ok) throw new ApiError(res.status, data.error || `Your server answered with code ${res.status}.`);
+  if (!res.ok) throw new ApiError(res.status, data.error || `The server answered with code ${res.status}.`);
   return data as T;
+}
+
+async function call<T>(action: string, body: Record<string, unknown> = {}): Promise<T> {
+  const session = getSession();
+  if (!session) throw new ApiError(401, "Sign in on this phone first.");
+  return send<T>(action, body, session.token);
+}
+
+export interface AccountInfo {
+  email: string;
+  role: "master" | "member";
+}
+
+/** One account, as the master sees it. */
+export interface AccountRow extends AccountInfo {
+  id: string;
+  status: "active" | "paused";
+  created_at: string;
+  last_seen_at: string | null;
+  recordings: number;
+  duration_ms: number;
 }
 
 export interface BeginResult extends ServerLight {
@@ -133,7 +157,15 @@ export interface BeginResult extends ServerLight {
 }
 
 export const api = {
-  ping: (code?: string) => call<{ ok: true }>("ping", {}, code ?? getCode()),
+  /** Asks for a sign-in code. The answer is the same whether or not the email has an account. */
+  authStart: (email: string) => send<{ ok: true }>("auth_start", { email }, null),
+  authVerify: (email: string, code: string) => send<{ token: string; account: AccountInfo }>("auth_verify", { email, code }, null),
+  signOut: () => call<{ ok: true }>("sign_out"),
+  ping: () => call<{ ok: true; account: AccountInfo }>("ping"),
+  accounts: () => call<{ accounts: AccountRow[] }>("accounts_list"),
+  accountAdd: (email: string) => call<{ ok: true; emailed: boolean }>("account_add", { email }),
+  accountUpdate: (id: string, status: "active" | "paused") => call<{ ok: true }>("account_update", { id, status }),
+  accountRemove: (id: string) => call<{ ok: true }>("account_remove", { id }),
   begin: (body: {
     id: string;
     recorded_at: string;

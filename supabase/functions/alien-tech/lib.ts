@@ -223,3 +223,59 @@ export function clock(seconds: number): string {
   const mm = String(m).padStart(h ? 2 : 1, "0");
   return h ? `${h}:${mm}:${String(sec).padStart(2, "0")}` : `${mm}:${String(sec).padStart(2, "0")}`;
 }
+
+// ---------------------------------------------------------------- accounts
+
+export function hex(buf: ArrayBuffer): string {
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Compares two secrets without stopping at the first difference.
+export function same(a: string, b: string): boolean {
+  if (a.length !== b.length || a.length === 0) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+// The email as accounts store it: trimmed and lower case. Null when it isn't an email.
+export function cleanEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  if (email.length > 254 || !/^[^\s@,;<>()"]+@[^\s@,;<>()"]+\.[a-z0-9-]{2,}$/.test(email)) return null;
+  return email;
+}
+
+// The 6 digits of a sign-in code, however they were typed. Null when it isn't one.
+export function cleanCode(value: unknown): string | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const digits = String(value).replace(/\D/g, "");
+  return digits.length === 6 ? digits : null;
+}
+
+const SITE = "alientek.org";
+
+function page(lines: string[]): string {
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const body = lines.map((l) => `<p style="margin:0 0 16px">${esc(l)}</p>`).join("");
+  return `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;color:#0a0a0a;max-width:440px">${body}</div>`;
+}
+
+export function codeEmail(code: string, minutes: number): { subject: string; text: string; html: string } {
+  const lines = [
+    `Your Alien Technology sign-in code is ${code}.`,
+    `Type it into the app. It works for ${minutes} minutes and only once.`,
+    "If you didn't ask for this, you can ignore this email. Nobody can sign in without the code.",
+  ];
+  return { subject: `${code} is your Alien Technology code`, text: lines.join("\n\n"), html: page(lines) };
+}
+
+export function inviteEmail(): { subject: string; text: string; html: string } {
+  const lines = [
+    "You've been given an Alien Technology account.",
+    "Alien Technology records a conversation on your phone and gives you the full transcript, with each speaker labeled, and clean notes.",
+    `To start, open ${SITE} on your phone and sign in with this email address. A 6-digit code will be sent here each time you sign in on a new phone.`,
+    "Your recordings are private to your account.",
+  ];
+  return { subject: "Your Alien Technology account is ready", text: lines.join("\n\n"), html: page(lines) };
+}

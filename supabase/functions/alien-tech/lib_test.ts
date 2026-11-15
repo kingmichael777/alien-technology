@@ -1,5 +1,5 @@
 // Run with: deno test supabase/functions/alien-tech/lib_test.ts
-import { canonicalCode, clock, shapeNotes, shapeTranscript, tidy } from "./lib.ts";
+import { canonicalCode, cleanCode, cleanEmail, clock, codeEmail, inviteEmail, same, shapeNotes, shapeTranscript, tidy } from "./lib.ts";
 
 function eq(actual: unknown, expected: unknown, label = "") {
   const a = JSON.stringify(actual);
@@ -114,4 +114,41 @@ Deno.test("tidy and clock", () => {
   eq(clock(5), "0:05");
   eq(clock(65), "1:05");
   eq(clock(3725), "1:02:05");
+});
+
+Deno.test("emails are stored trimmed and lower case, and junk is refused", () => {
+  eq(cleanEmail("  Dana@Example.COM "), "dana@example.com");
+  eq(cleanEmail("dana+work@mail.example.co"), "dana+work@mail.example.co");
+  eq(cleanEmail("dana@example"), null);
+  eq(cleanEmail("dana example.com"), null);
+  eq(cleanEmail("a@b.com,c@d.com"), null);
+  eq(cleanEmail("x".repeat(250) + "@example.com"), null);
+  eq(cleanEmail(42), null);
+});
+
+Deno.test("a sign-in code is 6 digits however it is typed", () => {
+  eq(cleanCode("123456"), "123456");
+  eq(cleanCode(" 123 456 "), "123456");
+  eq(cleanCode("012-345"), "012345");
+  eq(cleanCode(123456), "123456");
+  eq(cleanCode("12345"), null);
+  eq(cleanCode("1234567"), null);
+  eq(cleanCode(null), null);
+});
+
+Deno.test("secrets only match themselves", () => {
+  eq(same("abc123", "abc123"), true);
+  eq(same("abc123", "abc124"), false);
+  eq(same("abc", "abc123"), false);
+  eq(same("", ""), false);
+});
+
+Deno.test("emails carry the code and no em dashes", () => {
+  const code = codeEmail("004217", 10);
+  eq(code.subject, "004217 is your Alien Technology code");
+  eq(code.text.includes("004217") && code.html.includes("004217"), true);
+  for (const mail of [code, inviteEmail()]) {
+    eq(/[\u2014\u2013*#]/.test(mail.subject + mail.text), false);
+    eq(mail.html.includes("<a "), false);
+  }
 });

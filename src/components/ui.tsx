@@ -111,7 +111,7 @@ export function SheetRow({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex min-h-14 w-full items-center gap-4 border-t border-line px-5 text-left transition-colors active:bg-surface disabled:opacity-40",
+        "flex min-h-14 w-full items-center gap-4 border-t border-line px-5 py-2.5 text-left transition-colors active:bg-surface disabled:opacity-40",
         danger ? "text-pin" : "text-ink",
       )}
     >

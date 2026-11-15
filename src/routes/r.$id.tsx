@@ -44,7 +44,7 @@ function RecordingScreen() {
         <PageHeader left={<BackLink />} title={null} />
         <div className="px-6 py-16 text-center">
           <p className="font-display font-semibold tracking-tight text-[22px] text-ink">This recording isn't here</p>
-          <p className="mt-2 text-[14px] text-ink-muted">It may have been deleted, or this phone isn't connected to your server.</p>
+          <p className="mt-2 text-[14px] text-ink-muted">It may have been deleted, or you aren't signed in on this phone.</p>
         </div>
       </div>
     );
@@ -128,7 +128,7 @@ function Recording({ row }: { row: RecordingRow }) {
             <StatusLine row={row} />
             {phase.kind === "working" && (
               <p className="mt-2 text-[13px] leading-relaxed text-ink-faint">
-                You can leave this screen or close the app. Your server finishes on its own.
+                You can leave this screen or close the app. The server finishes on its own.
               </p>
             )}
             {phase.kind === "local" && phase.progress !== undefined && (
@@ -258,7 +258,7 @@ function Recording({ row }: { row: RecordingRow }) {
         open={deleting}
         onClose={() => setDeleting(false)}
         title="Delete this recording?"
-        body="The audio, transcript and notes are removed from this phone and from your server. This can't be undone."
+        body="The audio, transcript and notes are removed from this phone and from the server. This can't be undone."
         confirmLabel="Delete"
         onConfirm={async () => {
           try {

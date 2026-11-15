@@ -1,4 +1,4 @@
-// Keeps this phone and your server in step:
+// Keeps this phone and the server in step:
 //   1. uploads recordings saved on this phone, oldest first
 //   2. reads the server's list and merges it in (status, titles, names)
 //   3. fetches transcripts and notes once they exist
@@ -7,7 +7,7 @@
 // and once a minute otherwise.
 
 import { create } from "zustand";
-import { api, ApiError, getCode, putFile, type ServerFull, type ServerLight } from "./api";
+import { api, ApiError, getSession, putFile, setSession, signedIn, type ServerFull, type ServerLight } from "./api";
 import { db, type RecordingRow, type ServerCopy } from "./db";
 
 /** Parts stay under the server's 50 MB storage limit. */
@@ -18,13 +18,13 @@ const SLOW_MS = 60_000;
 interface SyncState {
   /** Upload progress by recording id, from 0 to 1. */
   progress: Record<string, number>;
-  /** The server refused the access code saved on this phone. */
-  codeRefused: boolean;
+  /** The account was paused by the owner. Recordings wait on this phone. */
+  paused: boolean;
   lastError: string | null;
   lastSyncAt: number | null;
 }
 
-export const useSync = create<SyncState>(() => ({ progress: {}, codeRefused: false, lastError: null, lastSyncAt: null }));
+export const useSync = create<SyncState>(() => ({ progress: {}, paused: false, lastError: null, lastSyncAt: null }));
 
 const setProgress = (id: string, value: number | null) =>
   useSync.setState((s) => {
@@ -64,7 +64,7 @@ export function kick() {
 
 async function schedule() {
   if (timer) clearTimeout(timer);
-  if (!getCode()) return;
+  if (!signedIn()) return;
   const rows = await db.recordings.toArray();
   const busy = rows.some(
     (r) =>
@@ -82,7 +82,7 @@ export function startSync() {
   if (started) return;
   started = true;
   window.addEventListener("online", kick);
-  window.addEventListener("alien:code", kick);
+  window.addEventListener("alien:session", kick);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") kick();
   });
@@ -90,16 +90,22 @@ export function startSync() {
 }
 
 async function pass() {
-  if (!getCode() || !navigator.onLine) return;
+  const session = getSession();
+  if (!session || !navigator.onLine) return;
   try {
     await uploadPending();
     const { recordings } = await api.list();
+    // Someone signed out or switched account while this pass was running.
+    if (getSession()?.token !== session.token) return;
     await merge(recordings);
     await fetchDetails();
-    useSync.setState({ codeRefused: false, lastError: null, lastSyncAt: Date.now() });
+    useSync.setState({ paused: false, lastError: null, lastSyncAt: Date.now() });
   } catch (e) {
-    if (e instanceof ApiError && e.status === 401) useSync.setState({ codeRefused: true });
-    useSync.setState({ lastError: e instanceof Error ? e.message : String(e) });
+    const status = e instanceof ApiError ? e.status : -1;
+    // The server no longer knows this phone: back to the sign-in screen.
+    // Everything saved here stays until someone signs in.
+    if (status === 401 && getSession()?.token === session.token) setSession(null);
+    useSync.setState({ paused: status === 403, lastError: e instanceof Error ? e.message : String(e) });
   }
 }
 
@@ -114,7 +120,7 @@ async function uploadPending() {
       setProgress(row.id, null);
       const status = e instanceof ApiError ? e.status : -1;
       const message = e instanceof Error ? e.message : "The upload failed. It will try again.";
-      if (status === 401) throw e; // wrong code: stop and say so
+      if (status === 401 || status === 403) throw e; // signed out or paused: stop and say so
       const permanent = status === 413 || status === 415;
       await db.recordings.update(row.id, { sync: permanent ? "rejected" : "pending", syncError: message });
       if (status === 0) return; // offline or unreachable: try the rest later

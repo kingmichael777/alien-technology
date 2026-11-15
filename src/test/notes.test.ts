@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalCode, looksLikeCode } from "@/lib/api";
+import { looksLikeEmail } from "@/lib/account";
 import type { RecordingRow, ServerCopy } from "@/lib/db";
 import { length, stamp, timer, when } from "@/lib/format";
 import {
@@ -146,11 +146,12 @@ describe("format", () => {
   });
 });
 
-describe("access code", () => {
-  it("accepts the code however it is typed", () => {
-    expect(canonicalCode(" alien ab2cd ef3gh jk4lm np5qr ")).toBe("ALIEN-AB2CD-EF3GH-JK4LM-NP5QR");
-    expect(looksLikeCode("alienab2cdef3ghjk4lmnp5qr")).toBe(true);
-    expect(looksLikeCode("hello")).toBe(false);
+describe("signing in", () => {
+  it("knows an email address when it sees one", () => {
+    expect(looksLikeEmail(" Dana@Example.com ")).toBe(true);
+    expect(looksLikeEmail("dana@example")).toBe(false);
+    expect(looksLikeEmail("dana example.com")).toBe(false);
+    expect(looksLikeEmail("")).toBe(false);
   });
 });
 

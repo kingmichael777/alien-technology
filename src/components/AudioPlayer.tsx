@@ -57,7 +57,7 @@ export function AudioPlayer({ row, durationMs }: { row: RecordingRow; durationMs
     try {
       const got = await audioSource(row);
       if (!got) {
-        setNote(navigator.onLine ? "The audio isn't on your server yet." : "Connect to the internet to play this recording.");
+        setNote(navigator.onLine ? "The audio isn't on the server yet." : "Connect to the internet to play this recording.");
         playWhenReady = false;
         return;
       }

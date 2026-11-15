@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { getCode } from "./api";
+import { getSession, type Session } from "./api";
 import { db, type RecordingRow } from "./db";
 
 /** Newest first. Undefined while the first read is in flight. */
@@ -33,19 +33,24 @@ export function useOnline(): boolean {
   return online;
 }
 
-/** True when an access code is saved on this phone. */
-export function useConnected(): boolean {
-  const [connected, setConnected] = useState(() => !!getCode());
+/** The account signed in on this phone, or null. */
+export function useSession(): Session | null {
+  const [session, setValue] = useState(() => getSession());
   useEffect(() => {
-    const update = () => setConnected(!!getCode());
-    window.addEventListener("alien:code", update);
+    const update = () => setValue(getSession());
+    window.addEventListener("alien:session", update);
     window.addEventListener("storage", update);
     return () => {
-      window.removeEventListener("alien:code", update);
+      window.removeEventListener("alien:session", update);
       window.removeEventListener("storage", update);
     };
   }, []);
-  return connected;
+  return session;
+}
+
+/** True when someone is signed in on this phone. */
+export function useConnected(): boolean {
+  return useSession() !== null;
 }
 
 export function useStorageUse(): { count: number; bytes: number } | undefined {

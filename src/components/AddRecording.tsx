@@ -43,7 +43,7 @@ export function AddRecording() {
           setBusy(true);
           try {
             const id = await addFile(file);
-            toast("Added. It's uploading to your server now.");
+            toast("Added. It's uploading to the server now.");
             void navigate({ to: "/r/$id", params: { id } });
           } catch (err) {
             toast(err instanceof Error ? err.message : "That file couldn't be added.");

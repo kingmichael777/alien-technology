@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Search, Settings, X } from "lucide-react";
 import { AddRecording } from "@/components/AddRecording";
-import { ConnectCard } from "@/components/ConnectCard";
+import { SignInCard } from "@/components/SignInCard";
 import { RecordButton } from "@/components/RecordButton";
 import { StatusLine, usePhase } from "@/components/Status";
 import { Mark, Highlight, OfflineChip, SW } from "@/components/ui";
@@ -20,7 +20,7 @@ export const Route = createFileRoute("/")({
 function Home() {
   const rows = useRecordings();
   const connected = useConnected();
-  const codeRefused = useSync((s) => s.codeRefused);
+  const paused = useSync((s) => s.paused);
   const [query, setQuery] = useState("");
   const terms = useMemo(() => searchTerms(query), [query]);
   const shown = useMemo(() => (rows ?? []).filter((r) => matches(r, terms)), [rows, terms]);
@@ -47,12 +47,11 @@ function Home() {
         <AddRecording />
       </section>
 
-      {!connected && <ConnectCard className="mx-4 mb-7" />}
-      {connected && codeRefused && (
-        <Link to="/settings" className="card-at mx-4 mb-7 block border-pin/40 px-4 py-3 text-[14px] text-ink">
-          Your server stopped accepting the access code on this phone. <span className="font-medium underline underline-offset-2">Open Settings</span> to enter it
-          again.
-        </Link>
+      {!connected && <SignInCard className="mx-4 mb-7" />}
+      {connected && paused && (
+        <p className="card-at mx-4 mb-7 border-pin/40 px-4 py-3 text-[14px] leading-relaxed text-ink">
+          This account is paused. New recordings are saved on this phone and upload when the owner turns it back on.
+        </p>
       )}
 
       <section className="px-4">

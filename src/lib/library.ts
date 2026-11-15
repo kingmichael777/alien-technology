@@ -1,6 +1,6 @@
 // Everything the screens can do to a recording.
 
-import { api, ApiError, getCode, type ServerFull } from "./api";
+import { api, ApiError, signedIn, type ServerFull } from "./api";
 import { db, type RecordingRow } from "./db";
 import { kick, storeFull } from "./sync";
 
@@ -33,7 +33,7 @@ export async function saveRecording(r: {
 }
 
 function needServer() {
-  if (!getCode()) throw new ApiError(401, "Connect this phone to your server first.");
+  if (!signedIn()) throw new ApiError(401, "Sign in on this phone first.");
   if (!navigator.onLine) throw new ApiError(0, "You're offline. Try again when you're connected.");
 }
 
@@ -85,7 +85,7 @@ export async function rewriteNotes(row: RecordingRow) {
 
 // ---------------------------------------------------------------- adding a file
 
-/** The audio formats your server can read, by file extension. */
+/** The audio formats the server can read, by file extension. */
 const BY_EXTENSION: Record<string, string> = {
   m4a: "audio/mp4",
   mp4: "audio/mp4",
@@ -152,7 +152,7 @@ export async function addFile(file: File): Promise<string> {
   return id;
 }
 
-/** Deletes the recording from this phone and from your server. */
+/** Deletes the recording from this phone and from the server. */
 export async function deleteRecording(row: RecordingRow) {
   const onServer = row.sync === "synced" || !!row.server;
   if (onServer) {
@@ -162,7 +162,7 @@ export async function deleteRecording(row: RecordingRow) {
     } catch (e) {
       if (!(e instanceof ApiError && e.status === 404)) throw e;
     }
-  } else if (getCode() && navigator.onLine) {
+  } else if (signedIn() && navigator.onLine) {
     // It may have started uploading; clear any half-made server copy too.
     await api.remove(row.id).catch(() => undefined);
   }
@@ -186,11 +186,11 @@ export async function removeLocalAudio(): Promise<number> {
   return freed;
 }
 
-/** The recording's audio: from this phone when it has it, otherwise from your server. */
+/** The recording's audio: from this phone when it has it, otherwise from the server. */
 export async function audioSource(row: RecordingRow): Promise<{ url: string; revoke: boolean } | null> {
   const local = row.hasAudio ? await db.audio.get(row.id) : undefined;
   if (local) return { url: URL.createObjectURL(local.data), revoke: true };
-  if (!getCode() || !navigator.onLine || !row.server || row.server.status === "uploading") return null;
+  if (!signedIn() || !navigator.onLine || !row.server || row.server.status === "uploading") return null;
   const { urls, mime_type } = await api.audio(row.id);
   if (urls.length === 1) return { url: urls[0], revoke: false };
   const pieces: Blob[] = [];
@@ -210,7 +210,7 @@ export async function audioBlob(row: RecordingRow): Promise<Blob | null> {
 
 /** Opens a recording that isn't on this phone yet (a link from another device). */
 export async function fetchRecording(id: string): Promise<boolean> {
-  if (!getCode() || !navigator.onLine) return false;
+  if (!signedIn() || !navigator.onLine) return false;
   try {
     const { recording } = await api.get(id);
     await db.recordings.put({

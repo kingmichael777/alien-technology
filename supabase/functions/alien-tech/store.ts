@@ -48,6 +48,7 @@ export type Row = {
   speaker_names: Record<string, string>;
   attempts: number;
   processing_started_at: string | null;
+  owner_id: string | null;
 };
 
 // A problem the app can show to the person as it is.
@@ -73,6 +74,14 @@ export async function getRow(id: string): Promise<Row | null> {
 export async function mustGet(id: string): Promise<Row> {
   const row = await getRow(id);
   if (!row) throw new Problem(404, "That recording wasn't found.");
+  return row;
+}
+
+// The recording, only when it belongs to this account. Someone else's
+// recording answers exactly like one that doesn't exist.
+export async function mustOwn(id: string, ownerId: string): Promise<Row> {
+  const row = await getRow(id);
+  if (!row || row.owner_id !== ownerId) throw new Problem(404, "That recording wasn't found.");
   return row;
 }
 
