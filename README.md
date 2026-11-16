@@ -12,9 +12,12 @@ Live: https://alientek.org (Netlify project `alien-technology`).
 5. **Sync.** The app polls the function for status, then caches transcripts and notes on the phone for offline reading and search.
 6. **Never lose audio.** If the server copy disappears or the server is still waiting for audio that a phone holds, that phone uploads it again. A phone only drops a recording missing from the server when it holds no audio for it.
 
+## Recording a Google Meet or Zoom call
+On a computer, in Chrome or Edge, **Record a Meet or Zoom call** asks the browser to share the meeting's tab with its sound (`getDisplayMedia`), mixes that with the microphone in one audio track, and records the mix like any other recording. The tab's picture is requested because browsers won't share sound without it; it is never recorded. The recording ends when the tab stops being shared. Phones can't do this (no browser there can share another app's sound), and neither can Safari. The app does not announce the recording to the other people on the call.
+
 ## Pieces
 - `src/` the app: React 19, TypeScript, Vite, Tailwind v4, TanStack Router, Dexie, Zustand. Installable PWA that opens and records offline.
-  - `lib/recorder.ts` microphone, recording, crash recovery
+  - `lib/recorder.ts` microphone, meeting tab plus microphone, recording, crash recovery
   - `lib/account.ts` signing in and out, and what a phone keeps when the account changes
   - `lib/sync.ts` uploads, status, fetching transcripts and notes
   - `lib/library.ts` rename, retry, rewrite notes, delete, audio

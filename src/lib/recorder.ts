@@ -9,7 +9,25 @@ import { create } from "zustand";
 import { db } from "./db";
 import { saveRecording } from "./library";
 
-export type RecState = "idle" | "starting" | "recording" | "paused" | "saving" | "denied" | "unsupported" | "error";
+export type RecState =
+  | "idle"
+  | "starting"
+  | "recording"
+  | "paused"
+  | "saving"
+  | "denied"
+  | "unsupported"
+  | "error"
+  /** A meeting was picked but none of its sound was shared. */
+  | "nosound";
+
+/** "mic" is a conversation in the room. "meeting" is a Google Meet or Zoom call in a browser tab, plus your microphone. */
+export type RecMode = "mic" | "meeting";
+
+/** True where the browser can share a tab or screen at all (computers, not phones). */
+export function canRecordMeeting(): boolean {
+  return typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia && typeof MediaRecorder !== "undefined";
+}
 
 const TIMESLICE_MS = 1000;
 const BEAT_MS = 4000;
@@ -38,6 +56,9 @@ export function pickMime(): string {
 
 interface RecorderStore {
   state: RecState;
+  mode: RecMode;
+  /** A meeting is being recorded without your own microphone. */
+  micMissing: boolean;
   id: string | null;
   analyser: AnalyserNode | null;
   /** The phone took the microphone away for a moment (a call, Siri). */
@@ -46,6 +67,8 @@ interface RecorderStore {
   notice: string | null;
   savedId: string | null;
   start: () => void;
+  /** Must run inside a click: the browser only offers the tab picker that way. */
+  startMeeting: () => void;
   pause: () => void;
   resume: () => void;
   elapsed: () => number;
@@ -56,6 +79,8 @@ interface RecorderStore {
 
 // Live objects stay outside the store; the store holds what screens draw.
 let stream: MediaStream | null = null;
+/** For a meeting: the shared tab and the microphone that were mixed into `stream`. */
+let sources: MediaStream[] = [];
 let ctx: AudioContext | null = null;
 let recorder: MediaRecorder | null = null;
 let chunks: Blob[] = [];
@@ -91,12 +116,15 @@ function releaseWake() {
 function teardown() {
   if (beatTimer) clearInterval(beatTimer);
   beatTimer = null;
-  stream?.getTracks().forEach((t) => {
-    t.onended = null;
-    t.onmute = null;
-    t.onunmute = null;
-    t.stop();
-  });
+  for (const media of [stream, ...sources]) {
+    media?.getTracks().forEach((t) => {
+      t.onended = null;
+      t.onmute = null;
+      t.onunmute = null;
+      t.stop();
+    });
+  }
+  sources = [];
   void ctx?.close().catch(() => undefined);
   releaseWake();
   stream = null;
@@ -138,12 +166,57 @@ export const useRecorder = create<RecorderStore>((set, get) => {
     if (document.visibilityState !== "visible" || (state !== "recording" && state !== "paused")) return;
     void keepAwake();
     const track = stream?.getAudioTracks()[0];
-    if (track && track.readyState === "ended") void autoStop("The phone stopped the microphone, so the recording ended. What was recorded is saved.");
+    if (get().mode === "mic" && track && track.readyState === "ended") {
+      void autoStop("The phone stopped the microphone, so the recording ended. What was recorded is saved.");
+    }
+  };
+
+  /** Starts the recorder on audio that is already flowing. Shared by both ways of recording. */
+  const record = (id: string, media: MediaStream, analyser: AnalyserNode | null) => {
+    const mime = pickMime();
+    let rec: MediaRecorder;
+    try {
+      rec = new MediaRecorder(media, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 48_000 });
+    } catch {
+      rec = new MediaRecorder(media, mime ? { mimeType: mime } : undefined);
+    }
+    recorder = rec;
+    mimeType = rec.mimeType || mime || "audio/webm";
+    chunks = [];
+    seq = 0;
+    accumMs = 0;
+    rec.ondataavailable = (e) => {
+      if (!e.data || e.data.size === 0) return;
+      chunks.push(e.data);
+      persistChunk(id, seq++, e.data);
+    };
+    rec.onerror = () => void autoStop("The recorder had a problem, so the recording ended. What was recorded is saved.");
+    rec.start(TIMESLICE_MS);
+    startedAt = Date.now();
+    segStart = performance.now();
+    set({ state: "recording", analyser });
+    beat();
+    beatTimer = setInterval(beat, BEAT_MS);
+    void keepAwake();
+  };
+
+  const newContext = (): AudioContext | null => {
+    try {
+      const Ctx: typeof AudioContext =
+        window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const made = new Ctx();
+      void made.resume();
+      return made;
+    } catch {
+      return null;
+    }
   };
   if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisible);
 
   return {
     state: "idle",
+    mode: "mic",
+    micMissing: false,
     id: null,
     analyser: null,
     interrupted: false,
@@ -158,16 +231,9 @@ export const useRecorder = create<RecorderStore>((set, get) => {
         return;
       }
       // Created inside the tap so iPhones let it run.
-      try {
-        const Ctx: typeof AudioContext =
-          window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        ctx = new Ctx();
-        void ctx.resume();
-      } catch {
-        ctx = null;
-      }
+      ctx = newContext();
       const id = crypto.randomUUID();
-      set({ state: "starting", id, analyser: null, interrupted: false, notice: null, savedId: null });
+      set({ state: "starting", mode: "mic", micMissing: false, id, analyser: null, interrupted: false, notice: null, savedId: null });
 
       navigator.mediaDevices
         .getUserMedia({
@@ -192,43 +258,109 @@ export const useRecorder = create<RecorderStore>((set, get) => {
               analyser = null;
             }
           }
-          const mime = pickMime();
-          let rec: MediaRecorder;
-          try {
-            rec = new MediaRecorder(media, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 48_000 });
-          } catch {
-            rec = new MediaRecorder(media, mime ? { mimeType: mime } : undefined);
-          }
-          recorder = rec;
-          mimeType = rec.mimeType || mime || "audio/webm";
-          chunks = [];
-          seq = 0;
-          accumMs = 0;
-          rec.ondataavailable = (e) => {
-            if (!e.data || e.data.size === 0) return;
-            chunks.push(e.data);
-            persistChunk(id, seq++, e.data);
-          };
-          rec.onerror = () => void autoStop("The microphone had a problem, so the recording ended. What was recorded is saved.");
           const track = media.getAudioTracks()[0];
           if (track) {
             track.onended = () => void autoStop("The phone stopped the microphone, so the recording ended. What was recorded is saved.");
             track.onmute = () => set({ interrupted: true });
             track.onunmute = () => set({ interrupted: false });
           }
-          rec.start(TIMESLICE_MS);
-          startedAt = Date.now();
-          segStart = performance.now();
-          set({ state: "recording", analyser });
-          beat();
-          beatTimer = setInterval(beat, BEAT_MS);
-          void keepAwake();
+          record(id, media, analyser);
         })
         .catch((e: DOMException) => {
           void ctx?.close().catch(() => undefined);
           ctx = null;
           set({ state: e?.name === "NotAllowedError" || e?.name === "SecurityError" ? "denied" : "error", id: null });
         });
+    },
+
+    startMeeting: () => {
+      const s = get().state;
+      if (s === "starting" || s === "recording" || s === "paused" || s === "saving") return;
+      if (!canRecordMeeting()) {
+        set({ state: "unsupported", mode: "meeting" });
+        return;
+      }
+      ctx = newContext();
+      const id = crypto.randomUUID();
+      set({ state: "starting", mode: "meeting", micMissing: false, id, analyser: null, interrupted: false, notice: null, savedId: null });
+      const fail = (state: RecState) => {
+        for (const media of sources) media.getTracks().forEach((t) => t.stop());
+        sources = [];
+        void ctx?.close().catch(() => undefined);
+        ctx = null;
+        set({ state, id: null });
+      };
+      const stale = () => get().state !== "starting" || get().id !== id;
+
+      void (async () => {
+        // 1. The meeting: the person picks its tab (or the screen) and shares its sound.
+        let shared: MediaStream;
+        try {
+          shared = await navigator.mediaDevices.getDisplayMedia({
+            // The browser won't share sound without a picture. The picture is never recorded.
+            video: true,
+            // The other people's voices exactly as they arrive, with no call processing on top.
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+            // Hints for the picker, where the browser knows them.
+            systemAudio: "include",
+            selfBrowserSurface: "exclude",
+            surfaceSwitching: "include",
+          } as DisplayMediaStreamOptions);
+        } catch (e) {
+          // Closing the picker is not a problem to report: back to the start.
+          const name = (e as DOMException)?.name;
+          if (name === "NotAllowedError" || name === "AbortError") {
+            void ctx?.close().catch(() => undefined);
+            ctx = null;
+            if (!stale()) set({ state: "idle", id: null });
+            return;
+          }
+          return fail("error");
+        }
+        sources = [shared];
+        if (stale()) return fail("idle");
+        if (shared.getAudioTracks().length === 0 || !ctx) return fail(ctx ? "nosound" : "error");
+
+        // 2. Your own voice. The meeting's sound has everyone but you in it.
+        let mic: MediaStream | null = null;
+        try {
+          mic = await navigator.mediaDevices.getUserMedia({
+            // Echo cancelling keeps the meeting, playing from the speakers, from being recorded twice.
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+          });
+          sources.push(mic);
+        } catch {
+          mic = null;
+        }
+        if (stale()) return fail("idle");
+
+        // 3. Both go into one track, and that is what gets recorded.
+        let mixed: MediaStream;
+        let analyser: AnalyserNode | null = null;
+        try {
+          const out = ctx.createMediaStreamDestination();
+          analyser = ctx.createAnalyser();
+          analyser.fftSize = 1024;
+          for (const media of mic ? [shared, mic] : [shared]) {
+            const src = ctx.createMediaStreamSource(new MediaStream(media.getAudioTracks()));
+            src.connect(out);
+            src.connect(analyser);
+          }
+          mixed = out.stream;
+        } catch {
+          return fail("error");
+        }
+        stream = mixed;
+
+        // The meeting ended, its tab closed, or "Stop sharing" was pressed.
+        const ended = () => void autoStop("The meeting stopped being shared, so the recording ended. It's saved.");
+        for (const t of shared.getTracks()) t.onended = ended;
+        const micTrack = mic?.getAudioTracks()[0];
+        if (micTrack) micTrack.onended = () => set({ micMissing: true });
+
+        set({ micMissing: !mic });
+        record(id, mixed, analyser);
+      })();
     },
 
     pause: () => {

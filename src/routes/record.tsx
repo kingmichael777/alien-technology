@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, Mic, MicOff, Pause, Play, Square, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -38,7 +38,10 @@ function RecordScreen() {
   const interrupted = useRecorder((s) => s.interrupted);
   const notice = useRecorder((s) => s.notice);
   const savedId = useRecorder((s) => s.savedId);
-  const { start, pause, resume, stop, discard, clearNotice } = useRecorder.getState();
+  const mode = useRecorder((s) => s.mode);
+  const micMissing = useRecorder((s) => s.micMissing);
+  const { start, startMeeting, pause, resume, stop, discard, clearNotice } = useRecorder.getState();
+  const meeting = mode === "meeting";
   const [closing, setClosing] = useState(false);
   const live = state === "recording" || state === "paused";
 
@@ -51,6 +54,13 @@ function RecordScreen() {
     if (id) void navigate({ to: "/r/$id", params: { id }, replace: true });
     else void navigate({ to: "/", replace: true });
   }, [notice, savedId, clearNotice, navigate]);
+
+  // The tab picker was closed without choosing a meeting: back to the start.
+  const before = useRef(state);
+  useEffect(() => {
+    if (meeting && before.current === "starting" && state === "idle") void navigate({ to: "/", replace: true });
+    before.current = state;
+  }, [state, meeting, navigate]);
 
   // Closing the tab mid-recording asks first. (Even if it closes, the audio so far is kept.)
   useEffect(() => {
@@ -90,8 +100,8 @@ function RecordScreen() {
         </IconButton>
       </div>
 
-      {state === "denied" || state === "unsupported" || state === "error" ? (
-        <Problem state={state} onRetry={start} onBack={() => void navigate({ to: "/" })} />
+      {state === "denied" || state === "unsupported" || state === "error" || state === "nosound" ? (
+        <Problem state={state} meeting={meeting} onRetry={meeting ? startMeeting : start} onBack={() => void navigate({ to: "/" })} />
       ) : state === "idle" ? (
         <div className="flex flex-1 flex-col items-center justify-center px-6 pb-16 text-center">
           <button
@@ -110,7 +120,17 @@ function RecordScreen() {
           <div className="flex flex-1 flex-col items-center justify-center px-6">
             <div className="mb-7 flex items-center gap-2.5 font-mono text-[13px] tracking-[0.18em] text-ink-muted">
               {state === "recording" && <span className="size-2.5 animate-pulse rounded-full bg-pin" />}
-              {state === "starting" ? "STARTING" : state === "saving" ? "SAVING" : state === "paused" ? "PAUSED" : "RECORDING"}
+              {state === "starting"
+                ? meeting
+                  ? "CHOOSE THE MEETING TAB"
+                  : "STARTING"
+                : state === "saving"
+                  ? "SAVING"
+                  : state === "paused"
+                    ? "PAUSED"
+                    : meeting
+                      ? "RECORDING THE MEETING"
+                      : "RECORDING"}
             </div>
             <Clock />
             <div className="mt-9 w-full">
@@ -122,8 +142,16 @@ function RecordScreen() {
                 <span>The phone paused the microphone. Recording picks up again when it comes back.</span>
               </div>
             )}
-            <p className="mt-8 max-w-[30ch] text-center text-[13.5px] leading-relaxed text-ink-muted">
-              Keep this screen open while you record. Everything is saved as you go.
+            {meeting && micMissing && live && (
+              <div className="mt-6 flex items-start gap-2.5 rounded-[12px] border border-amber-line bg-amber-fill px-4 py-3 text-[14px] text-ink">
+                <MicOff size={18} strokeWidth={SW} className="mt-0.5 shrink-0 text-amber" />
+                <span>Your microphone isn't being recorded, only the meeting's sound. Your own voice won't be in the transcript.</span>
+              </div>
+            )}
+            <p className="mt-8 max-w-[32ch] text-center text-[13.5px] leading-relaxed text-ink-muted">
+              {meeting
+                ? "Keep this tab open in the background and go back to your meeting. Stop here when the call ends, or press Stop sharing."
+                : "Keep this screen open while you record. Everything is saved as you go."}
             </p>
           </div>
 
@@ -180,13 +208,29 @@ function RecordScreen() {
   );
 }
 
-function Problem({ state, onRetry, onBack }: { state: "denied" | "unsupported" | "error"; onRetry: () => void; onBack: () => void }) {
+function Problem({
+  state,
+  meeting,
+  onRetry,
+  onBack,
+}: {
+  state: "denied" | "unsupported" | "error" | "nosound";
+  meeting: boolean;
+  onRetry: () => void;
+  onBack: () => void;
+}) {
   const text =
-    state === "denied"
-      ? "The microphone is blocked for this app. Allow microphone access in your phone's settings for this browser or app, then try again."
-      : state === "unsupported"
-        ? "This browser can't record audio. On iPhone use Safari, on Android use Chrome."
-        : "The microphone didn't start. Try again.";
+    state === "nosound"
+      ? "None of the meeting's sound was shared. Try again, pick the tab with your meeting, and switch on Also share tab audio before you press Share. Safari can't share a tab's sound: use Chrome or Edge."
+      : meeting && state === "unsupported"
+        ? "This browser can't record a meeting. Use Chrome or Edge on a computer."
+        : meeting && state === "error"
+          ? "The meeting couldn't be shared. Try again."
+          : state === "denied"
+            ? "The microphone is blocked for this app. Allow microphone access in your phone's settings for this browser or app, then try again."
+            : state === "unsupported"
+              ? "This browser can't record audio. On iPhone use Safari, on Android use Chrome."
+              : "The microphone didn't start. Try again.";
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-8 pb-16 text-center">
       <AlertTriangle size={34} strokeWidth={SW} className="text-amber" />
