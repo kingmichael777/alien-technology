@@ -9,7 +9,9 @@ import { canonicalCode, cleanCode, cleanEmail, codeEmail, hex, inviteEmail, same
 import { Problem, SERVICE_KEY, serviceHeaders, SUPABASE_URL, uuid } from "./store.ts";
 
 const DB = `${SUPABASE_URL}/rest/v1`;
-const EMAIL_FROM = "Alien Technology <alien@mikerashid.com>";
+// The sender can be changed without a deploy: set the Vault secret
+// ALIEN_TECH_EMAIL_FROM to an address on a domain verified in Resend.
+const DEFAULT_EMAIL_FROM = "Alien Technology <alien@mikerashid.com>";
 
 const CODE_MINUTES = 10;
 const MAX_TRIES = 5; // wrong guesses allowed per code
@@ -314,17 +316,20 @@ export async function accountRemove(
 
 // ---------------------------------------------------------------- email
 
-async function sendEmail(to: string, mail: { subject: string; text: string; html: string }): Promise<boolean> {
+// Sent as plain text on purpose. Resend can only add its open-tracking pixel
+// to HTML, and a tracking pixel in a one-line sign-in email reads as spam.
+async function sendEmail(to: string, mail: { subject: string; text: string }): Promise<boolean> {
   const key = await config("RESEND_API_KEY");
   if (!key) {
     console.error("[alien-tech] RESEND_API_KEY is not set, so no email can be sent");
     return false;
   }
+  const from = (await config("ALIEN_TECH_EMAIL_FROM"))?.trim() || DEFAULT_EMAIL_FROM;
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject: mail.subject, text: mail.text, html: mail.html }),
+      body: JSON.stringify({ from, to: [to], subject: mail.subject, text: mail.text }),
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {

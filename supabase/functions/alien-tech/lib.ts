@@ -255,27 +255,21 @@ export function cleanCode(value: unknown): string | null {
 
 const SITE = "alientek.org";
 
-function page(lines: string[]): string {
-  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const body = lines.map((l) => `<p style="margin:0 0 16px">${esc(l)}</p>`).join("");
-  return `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;color:#0a0a0a;max-width:440px">${body}</div>`;
-}
-
-export function codeEmail(code: string, minutes: number): { subject: string; text: string; html: string } {
+export function codeEmail(code: string, minutes: number): { subject: string; text: string } {
   const lines = [
     `Your Alien Technology sign-in code is ${code}.`,
     `Type it into the app. It works for ${minutes} minutes and only once.`,
     "If you didn't ask for this, you can ignore this email. Nobody can sign in without the code.",
   ];
-  return { subject: `${code} is your Alien Technology code`, text: lines.join("\n\n"), html: page(lines) };
+  return { subject: `${code} is your Alien Technology code`, text: lines.join("\n\n") };
 }
 
-export function inviteEmail(): { subject: string; text: string; html: string } {
+export function inviteEmail(): { subject: string; text: string } {
   const lines = [
     "You've been given an Alien Technology account.",
     "Alien Technology records a conversation on your phone and gives you the full transcript, with each speaker labeled, and clean notes.",
     `To start, open ${SITE} on your phone and sign in with this email address. A 6-digit code will be sent here each time you sign in on a new phone.`,
     "Your recordings are private to your account.",
   ];
-  return { subject: "Your Alien Technology account is ready", text: lines.join("\n\n"), html: page(lines) };
+  return { subject: "Your Alien Technology account is ready", text: lines.join("\n\n") };
 }

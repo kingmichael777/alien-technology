@@ -146,9 +146,9 @@ Deno.test("secrets only match themselves", () => {
 Deno.test("emails carry the code and no em dashes", () => {
   const code = codeEmail("004217", 10);
   eq(code.subject, "004217 is your Alien Technology code");
-  eq(code.text.includes("004217") && code.html.includes("004217"), true);
+  eq(code.text.includes("004217"), true);
   for (const mail of [code, inviteEmail()]) {
     eq(/[\u2014\u2013*#]/.test(mail.subject + mail.text), false);
-    eq(mail.html.includes("<a "), false);
+    eq("html" in mail, false);
   }
 });

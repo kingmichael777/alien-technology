@@ -36,7 +36,7 @@ The app talks only to the function. Sign-up is by invitation: only an email the 
 - **On the phone.** Signing out, or signing in as someone else, removes that phone's copies of what the server holds. A recording that hasn't uploaded yet is never removed.
 - **The old access code.** A phone still on the earlier app sends the shared code in `x-alien-key` and is treated as the master, for as long as the Vault secret `ALIEN_TECH_KEY_SHA256` exists. Delete the secret to retire it.
 
-ElevenLabs, OpenAI and Resend keys stay in Vault (`ELEVENLABS_API_KEY`, `OPENAI_API_KEY`, `RESEND_API_KEY`).
+ElevenLabs, OpenAI and Resend keys stay in Vault (`ELEVENLABS_API_KEY`, `OPENAI_API_KEY`, `RESEND_API_KEY`). Sign-in emails are plain text. Their sender is the Vault secret `ALIEN_TECH_EMAIL_FROM` when it is set, on a domain verified in Resend; without it they come from `alien@mikerashid.com`.
 
 ## Run and ship
 ```
