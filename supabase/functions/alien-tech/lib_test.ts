@@ -1,4 +1,5 @@
 // Run with: deno test supabase/functions/alien-tech/lib_test.ts
+import { decodeJwt, googleClaimsProblem } from "./lib.ts";
 import { canonicalCode, cleanCode, cleanEmail, clock, codeEmail, inviteEmail, same, shapeNotes, shapeTranscript, tidy } from "./lib.ts";
 
 function eq(actual: unknown, expected: unknown, label = "") {
@@ -151,4 +152,39 @@ Deno.test("emails carry the code and no em dashes", () => {
     eq(/[\u2014\u2013*#]/.test(mail.subject + mail.text), false);
     eq("html" in mail, false);
   }
+});
+
+Deno.test("a Google token's contents are checked one by one", () => {
+  const now = Date.parse("2026-11-16T20:00:00Z");
+  const good = {
+    iss: "https://accounts.google.com",
+    aud: "client-1",
+    exp: now / 1000 + 3000,
+    iat: now / 1000 - 10,
+    nonce: "nonce-nonce-nonce-1",
+    email: "dana@example.com",
+    email_verified: true,
+  };
+  const check = (over: Record<string, unknown>) => googleClaimsProblem({ ...good, ...over }, "client-1", "nonce-nonce-nonce-1", now);
+  eq(check({}), null);
+  eq(check({ iss: "accounts.google.com" }), null);
+  eq(check({ iss: "https://evil.example" }), "wrong issuer");
+  eq(check({ aud: "client-2" }), "made for another app");
+  eq(check({ exp: now / 1000 - 600 }), "expired");
+  eq(check({ iat: now / 1000 + 3600 }), "issued in the future");
+  eq(check({ nonce: "another-nonce-000000" }), "not the sign-in this phone started");
+  eq(check({ nonce: undefined }), "not the sign-in this phone started");
+  eq(check({ email_verified: false }), "email not verified by Google");
+  eq(check({ email: undefined }), "no email");
+});
+
+Deno.test("a token is split without being trusted, and junk is refused", () => {
+  const b = (o: unknown) => btoa(JSON.stringify(o)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const jwt = decodeJwt(`${b({ alg: "RS256", kid: "k1" })}.${b({ email: "dana@example.com" })}.c2ln`);
+  eq(jwt?.header, { alg: "RS256", kid: "k1" });
+  eq(jwt?.claims, { email: "dana@example.com" });
+  eq(decodeJwt("not a token"), null);
+  eq(decodeJwt("a.b"), null);
+  eq(decodeJwt("!!!.???.###"), null);
+  eq(decodeJwt(`${b("text")}.${b(1)}.c2ln`), null);
 });

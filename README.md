@@ -21,15 +21,16 @@ Live: https://alientek.org (Netlify project `alien-technology`).
   - `lib/notes.ts` titles, status lines, search, sharing text
   - `lib/earlier.ts` one-time import of voice notes from the first version of the app
 - `supabase/functions/alien-tech/` the server function (Deno). Runs on the `quiet-work` Supabase project.
-  - `index.ts` actions: auth_start, auth_verify, sign_out, ping, begin, uploaded, process, renote, list, get, get_many, update, audio, delete, accounts_list, account_add, account_update, account_remove
-  - `accounts.ts` sign-in codes, sessions and the master's account tools
+  - `index.ts` actions: auth_config, auth_google, auth_start, auth_verify, sign_out, ping, begin, uploaded, process, renote, list, get, get_many, update, audio, delete, accounts_list, account_add, account_update, account_remove
+  - `accounts.ts` sign-in codes, sessions and the master's account tools; `google.ts` checks Google ID tokens
   - `ai.ts` ElevenLabs and OpenAI calls; `store.ts` database and storage; `lib.ts` pure shaping helpers (tested in `lib_test.ts`)
 - Database: table `public.alien_recordings` (row level security on, no policies: only the function's service role reads or writes it) and the private bucket `alien-recordings`.
 
 ## Accounts
 The app talks only to the function. Sign-up is by invitation: only an email the master account has added can sign in.
 
-- **Signing in.** A person types their email and gets a 6-digit code by email (Resend). The code works once, for 10 minutes, with 5 tries; an email gets at most 5 codes an hour. The server answers the same way whether or not the email has an account. The phone then keeps a session token and sends it in the `x-alien-session` header. A phone unused for 180 days signs in again.
+- **Signing in with Google.** The page goes to Google and comes back with an ID token, which the function checks against Google's published keys (signature, issuer, the app's client ID, expiry, the nonce this phone made, a verified email). Nothing new is created: the Google email must already be on the list. It is on once the Vault secret `ALIEN_TECH_GOOGLE_CLIENT_ID` holds the client ID of a Google web OAuth client with JavaScript origin `https://alientek.org` and redirect address `https://alientek.org/`. No client secret is used.
+- **Signing in by email.** A person types their email and gets a 6-digit code by email (Resend). The code works once, for 10 minutes, with 5 tries; an email gets at most 5 codes an hour. The server answers the same way whether or not the email has an account. The phone then keeps a session token and sends it in the `x-alien-session` header. A phone unused for 180 days signs in again.
 - **What is stored.** Tables `alien_accounts`, `alien_login_codes` and `alien_sessions` (row level security on, no policies). A code is kept only as an HMAC and a session token only as its SHA-256.
 - **Privacy between accounts.** Every recording has an `owner_id`. Every action checks it, and someone else's recording answers exactly like one that doesn't exist. This holds for the master too.
 - **The master account** adds, pauses, turns back on and removes accounts from Settings, and sees how much each has recorded. Removing an account deletes its recordings. There is one master. It is made once by hand in the database (see the migration), so its address stays out of this repository.

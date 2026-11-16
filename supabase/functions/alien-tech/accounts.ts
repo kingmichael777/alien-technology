@@ -6,6 +6,7 @@
 
 import { config } from "./_shared/config.ts";
 import { canonicalCode, cleanCode, cleanEmail, codeEmail, hex, inviteEmail, same } from "./lib.ts";
+import { googleClientId, googleEmail } from "./google.ts";
 import { Problem, SERVICE_KEY, serviceHeaders, SUPABASE_URL, uuid } from "./store.ts";
 
 const DB = `${SUPABASE_URL}/rest/v1`;
@@ -210,6 +211,27 @@ export async function authVerify(body: Record<string, unknown>) {
   if (!account || account.status !== "active") throw new Problem(401, WRONG_CODE);
   await db(`alien_login_codes?email=eq.${q(email)}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
 
+  return await startSession(account);
+}
+
+// What the sign-in screen offers. Google appears once its client ID is set.
+export async function authConfig() {
+  return { google_client_id: await googleClientId() };
+}
+
+// Signs in with a Google ID token. Google has already proved who owns the
+// email, so someone who isn't on the list is told so plainly.
+export async function authGoogle(body: Record<string, unknown>) {
+  const email = await googleEmail(body.id_token, body.nonce);
+  const account = await accountByEmail(email);
+  if (!account) {
+    throw new Problem(403, `${email} doesn't have an Alien Technology account. Ask the owner to add it.`);
+  }
+  if (account.status !== "active") throw new Problem(403, "This account is paused. Ask the owner to turn it back on.");
+  return await startSession(account);
+}
+
+async function startSession(account: Account) {
   const token = newToken();
   const now = new Date().toISOString();
   await db(`alien_sessions`, {

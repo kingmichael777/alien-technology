@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mail } from "lucide-react";
 import { toast } from "sonner";
-import { looksLikeEmail, signIn } from "@/lib/account";
+import { googleSignInUrl, looksLikeEmail, signIn } from "@/lib/account";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Spinner, SW } from "./ui";
@@ -13,6 +13,18 @@ export function SignInCard({ className }: { className?: string }) {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleId, setGoogleId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api
+      .authConfig()
+      .then((c) => live && setGoogleId(c.google_client_id))
+      .catch(() => undefined); // offline or not set up: email sign-in is still here
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const sendCode = async () => {
     const to = email.trim().toLowerCase();
@@ -56,7 +68,9 @@ export function SignInCard({ className }: { className?: string }) {
                 minute. No email? Ask the owner to add you.
               </>
             ) : (
-              "Enter your email and we'll send you a 6-digit code. Then every recording gets a transcript and notes."
+              googleId
+                ? "Sign in to get a transcript and notes for every recording."
+                : "Enter your email and we'll send you a 6-digit code. Then every recording gets a transcript and notes."
             )}
           </p>
         </div>
@@ -116,6 +130,15 @@ export function SignInCard({ className }: { className?: string }) {
             void sendCode();
           }}
         >
+          {googleId && (
+            <>
+              <button type="button" className="btn btn-primary w-full" onClick={() => location.assign(googleSignInUrl(googleId))}>
+                <GoogleMark />
+                Continue with Google
+              </button>
+              <p className="pt-1 text-center text-[12.5px] text-ink-muted">or get a code by email</p>
+            </>
+          )}
           <input
             className="field text-[16px]"
             type="email"
@@ -133,12 +156,21 @@ export function SignInCard({ className }: { className?: string }) {
             aria-label="Email"
           />
           {error && <p className="text-[13px] text-pin">{error}</p>}
-          <button type="submit" className="btn btn-primary w-full" disabled={busy || !email.trim()}>
-            {busy ? <Spinner className="border-on-amber/25 border-t-on-amber" /> : null}
+          <button type="submit" className={cn("btn w-full", googleId ? "btn-ghost" : "btn-primary")} disabled={busy || !email.trim()}>
+            {busy ? <Spinner className={googleId ? undefined : "border-on-amber/25 border-t-on-amber"} /> : null}
             Send code
           </button>
         </form>
       )}
     </div>
+  );
+}
+
+/** The Google "G", in one color so it sits on the button in every display mode. */
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor">
+      <path d="M12 10.2v3.9h5.5c-.2 1.3-1.6 3.7-5.5 3.7-3.3 0-6-2.7-6-6.1s2.7-6.1 6-6.1c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.800 3.100 14.600 2.100 12 2.100 6.500 2.100 2.100 6.500 2.100 12s4.400 9.900 9.900 9.900c5.700 0 9.500-4 9.500-9.700 0-.7-.1-1.200-.2-1.700H12z" />
+    </svg>
   );
 }

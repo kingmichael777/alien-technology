@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { Toaster, toast } from "sonner";
+import { finishGoogleSignIn } from "@/lib/account";
 import { getSetting, setSetting } from "@/lib/db";
 import { importEarlier } from "@/lib/earlier";
 import { useSetting } from "@/lib/hooks";
@@ -9,6 +10,16 @@ import { startSync } from "@/lib/sync";
 import { RecordingBanner } from "./RecordButton";
 
 export type DisplayMode = "standard" | "contrast" | "night";
+
+/** Back from Google: finish signing in. */
+async function signInFromGoogle() {
+  try {
+    const session = await finishGoogleSignIn();
+    if (session) toast(`Signed in as ${session.email}.`);
+  } catch (e) {
+    toast(e instanceof Error ? e.message : "Google sign-in didn't finish. Try again.");
+  }
+}
 
 /** When a new version of the app takes over, reload into it, waiting until no recording is running. */
 function reloadOnUpdate() {
@@ -38,6 +49,7 @@ async function boot() {
   booted = true;
   reloadOnUpdate();
   void registerServiceWorker();
+  void signInFromGoogle();
   try {
     if (!(await getSetting("persistAsked", false))) {
       await setSetting("persistAsked", true);

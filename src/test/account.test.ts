@@ -90,3 +90,65 @@ describe("accounts on this phone", () => {
     expect((await db.recordings.toArray()).map((r) => r.id)).toEqual(["b"]);
   });
 });
+
+describe("signing in with Google", async () => {
+  const { finishGoogleSignIn, googleSignInUrl } = await import("@/lib/account");
+
+  /** Starts a sign-in and returns what Google would be asked. */
+  const start = () => new URL(googleSignInUrl("client-1")).searchParams;
+
+  it("sends the person to Google with a fresh state and nonce", () => {
+    const a = start();
+    const b = start();
+    expect(a.get("client_id")).toBe("client-1");
+    expect(a.get("response_type")).toBe("id_token");
+    expect(a.get("scope")).toBe("openid email");
+    expect(a.get("redirect_uri")).toBe(`${location.origin}/`);
+    expect(a.get("nonce")).toHaveLength(48);
+    expect(a.get("nonce")).not.toBe(b.get("nonce"));
+    expect(a.get("state")).not.toBe(b.get("state"));
+  });
+
+  it("does nothing on an ordinary page load", async () => {
+    location.hash = "";
+    expect(await finishGoogleSignIn()).toBeNull();
+  });
+
+  it("finishes sign-in when Google sends the person back, and clears the address", async () => {
+    const calls: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        calls.push(JSON.parse(String(init.body)));
+        return new Response(JSON.stringify({ token: "t-1", account: { email: "dana@example.com", role: "member" } }), { status: 200 });
+      }),
+    );
+    const asked = start();
+    location.hash = `#state=${asked.get("state")}&id_token=the.id.token&authuser=0`;
+    const session = await finishGoogleSignIn();
+    expect(session).toEqual({ token: "t-1", email: "dana@example.com", role: "member" });
+    expect(calls).toEqual([{ action: "auth_google", id_token: "the.id.token", nonce: asked.get("nonce") }]);
+    expect(location.hash).toBe("");
+    expect(getSession()?.email).toBe("dana@example.com");
+  });
+
+  it("refuses a token that doesn't belong to a sign-in this phone started", async () => {
+    const fetched = vi.fn();
+    vi.stubGlobal("fetch", fetched);
+    start();
+    location.hash = "#state=someone-elses-state&id_token=the.id.token";
+    await expect(finishGoogleSignIn()).rejects.toThrow("Google sign-in didn't finish");
+    expect(fetched).not.toHaveBeenCalled();
+    expect(location.hash).toBe("");
+    // and the same token can't be replayed against the sign-in that was pending
+    location.hash = "#state=someone-elses-state&id_token=the.id.token";
+    await expect(finishGoogleSignIn()).rejects.toThrow();
+    expect(getSession()).toBeNull();
+  });
+
+  it("stays quiet when the person backs out at Google", async () => {
+    const asked = start();
+    location.hash = `#state=${asked.get("state")}&error=access_denied`;
+    expect(await finishGoogleSignIn()).toBeNull();
+  });
+});

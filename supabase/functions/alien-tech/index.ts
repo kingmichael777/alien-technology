@@ -16,8 +16,9 @@
 // any finished transcript are never thrown away by a failure.
 //
 // Each person has an account and sees only their own recordings. A phone
-// signs in with an email and a 6-digit code sent to it (auth_start,
-// auth_verify) and then sends its session token in the x-alien-session header
+// signs in with Google (auth_google) or with an email and a 6-digit code sent
+// to it (auth_start, auth_verify) and then sends its session token in the
+// x-alien-session header
 // with every request. The master account adds, pauses and removes accounts.
 // accounts.ts holds all of that.
 
@@ -27,6 +28,8 @@ import {
   accountRemove,
   accountsList,
   accountUpdate,
+  authConfig,
+  authGoogle,
   authorize,
   authStart,
   authVerify,
@@ -71,7 +74,7 @@ const MAX_PART_BYTES = 50 * 1024 * 1024; // the bucket's per-object limit
 const MAX_TOTAL_BYTES = 200 * 1024 * 1024; // what one worker can join in memory
 const MAX_PARTS = 8;
 const STALE_MS = 8 * 60 * 1000; // longer than any worker can live
-const VERSION = "3";
+const VERSION = "4";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -108,6 +111,8 @@ Deno.serve(async (req) => {
     // Signing in needs no session.
     if (action === "auth_start") return reply(200, await authStart(body));
     if (action === "auth_verify") return reply(200, await authVerify(body));
+    if (action === "auth_config") return reply(200, await authConfig());
+    if (action === "auth_google") return reply(200, await authGoogle(body));
 
     const me = await authorize(req);
 

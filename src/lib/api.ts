@@ -160,6 +160,10 @@ export const api = {
   /** Asks for a sign-in code. The answer is the same whether or not the email has an account. */
   authStart: (email: string) => send<{ ok: true }>("auth_start", { email }, null),
   authVerify: (email: string, code: string) => send<{ token: string; account: AccountInfo }>("auth_verify", { email, code }, null),
+  /** What the sign-in screen offers. */
+  authConfig: () => send<{ google_client_id: string | null }>("auth_config", {}, null),
+  authGoogle: (idToken: string, nonce: string) =>
+    send<{ token: string; account: AccountInfo }>("auth_google", { id_token: idToken, nonce }, null),
   signOut: () => call<{ ok: true }>("sign_out"),
   ping: () => call<{ ok: true; account: AccountInfo }>("ping"),
   accounts: () => call<{ accounts: AccountRow[] }>("accounts_list"),

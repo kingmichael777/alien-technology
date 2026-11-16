@@ -273,3 +273,58 @@ export function inviteEmail(): { subject: string; text: string } {
   ];
   return { subject: "Your Alien Technology account is ready", text: lines.join("\n\n") };
 }
+
+// ---------------------------------------------------------------- Google sign-in
+
+function fromBase64Url(text: string): Uint8Array<ArrayBuffer> | null {
+  try {
+    const b64 = text.replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+    const bytes = new Uint8Array(new ArrayBuffer(raw.length));
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+// Splits a signed token into its parts without trusting any of them yet.
+export function decodeJwt(token: string): {
+  header: Record<string, unknown>;
+  claims: Record<string, unknown>;
+  signed: Uint8Array<ArrayBuffer>;
+  signature: Uint8Array<ArrayBuffer>;
+} | null {
+  const parts = token.split(".");
+  if (parts.length !== 3 || token.length > 8192) return null;
+  const [h, c, s] = parts.map(fromBase64Url);
+  if (!h || !c || !s) return null;
+  try {
+    const header = JSON.parse(new TextDecoder().decode(h));
+    const claims = JSON.parse(new TextDecoder().decode(c));
+    if (!header || typeof header !== "object" || !claims || typeof claims !== "object") return null;
+    const signed = new Uint8Array(new TextEncoder().encode(`${parts[0]}.${parts[1]}`));
+    return { header, claims, signed, signature: s };
+  } catch {
+    return null;
+  }
+}
+
+// Why a Google ID token's contents can't be accepted, or null when they can.
+// The signature is checked separately; this is everything else.
+export function googleClaimsProblem(
+  claims: Record<string, unknown>,
+  clientId: string,
+  nonce: string,
+  nowMs: number,
+): string | null {
+  const now = nowMs / 1000;
+  if (claims.iss !== "https://accounts.google.com" && claims.iss !== "accounts.google.com") return "wrong issuer";
+  if (claims.aud !== clientId) return "made for another app";
+  if (typeof claims.exp !== "number" || claims.exp < now - 60) return "expired";
+  if (typeof claims.iat !== "number" || claims.iat > now + 300) return "issued in the future";
+  if (typeof claims.nonce !== "string" || !same(claims.nonce, nonce)) return "not the sign-in this phone started";
+  if (claims.email_verified !== true && claims.email_verified !== "true") return "email not verified by Google";
+  if (typeof claims.email !== "string") return "no email";
+  return null;
+}
