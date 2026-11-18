@@ -28,6 +28,8 @@ export interface RecordingRow {
   syncError: string | null;
   source: "app" | "recovered" | "earlier" | "server" | "imported";
   server: ServerCopy | null;
+  /** A name given on this phone that the server doesn't have yet (named while recording or before the upload). */
+  localTitle?: string | null;
   /** updated_at of the last full copy fetched from the server. */
   detailAt: string | null;
   createdAt: number;

@@ -179,3 +179,12 @@ describe("the message for Claude", () => {
     expect(text).not.toMatch(/[—*#]/);
   });
 });
+
+describe("a name given on this phone", () => {
+  it("shows before the server has it, ahead of the name the notes picked", () => {
+    expect(displayTitle(row({ localTitle: "Call with the contractor" }))).toBe("Call with the contractor");
+    expect(displayTitle(row({ localTitle: "Site visit", server: null, sync: "pending" }))).toBe("Site visit");
+    expect(displayTitle(row({ localTitle: "  " }))).toBe("Kitchen Remodeling Quote");
+    expect(fileName(row({ localTitle: "Site visit" }), "m4a")).toBe("2026-10-17 Site visit.m4a");
+  });
+});

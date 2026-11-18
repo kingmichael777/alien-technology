@@ -12,6 +12,9 @@ Live: https://alientek.org (Netlify project `alien-technology`).
 5. **Sync.** The app polls the function for status, then caches transcripts and notes on the phone for offline reading and search.
 6. **Never lose audio.** If the server copy disappears or the server is still waiting for audio that a phone holds, that phone uploads it again. A phone only drops a recording missing from the server when it holds no audio for it.
 
+## Naming a recording while it records
+The recording screen has a **Name this recording** button under the timer. The name can be set or changed at any point without pausing the audio. It is written to the phone right away with the rest of the recording's state, so a crash keeps it. When the recording is saved the name rides along as `localTitle` and shows everywhere at once; the phone hands it to the server as the recording's title as soon as the upload begins, then the server's copy takes over. Renaming a saved recording that hasn't uploaded yet works the same way, so it also works offline.
+
 ## Recording a Google Meet or Zoom call
 On a computer, in Chrome or Edge, **Record a Meet or Zoom call** asks the browser to share the meeting's tab with its sound (`getDisplayMedia`), mixes that with the microphone in one audio track, and records the mix like any other recording. The tab's picture is requested because browsers won't share sound without it; it is never recorded. The recording ends when the tab stops being shared. Phones can't do this (no browser there can share another app's sound), and neither can Safari. The app does not announce the recording to the other people on the call.
 

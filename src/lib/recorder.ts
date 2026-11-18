@@ -7,7 +7,7 @@
 
 import { create } from "zustand";
 import { db } from "./db";
-import { saveRecording } from "./library";
+import { cleanTitle, saveRecording } from "./library";
 
 export type RecState =
   | "idle"
@@ -40,6 +40,8 @@ interface Session {
   mimeType: string;
   elapsedMs: number;
   beat: number;
+  /** The name given while recording, so it survives a crash with the audio. */
+  title?: string;
 }
 
 export function baseType(mime: string): string {
@@ -66,6 +68,9 @@ interface RecorderStore {
   /** Set when the recording stopped on its own; the screen explains it. */
   notice: string | null;
   savedId: string | null;
+  /** The name given to the recording in progress. Empty until someone types one. */
+  title: string;
+  setTitle: (title: string) => void;
   start: () => void;
   /** Must run inside a click: the browser only offers the tab picker that way. */
   startMeeting: () => void;
@@ -152,7 +157,7 @@ export const useRecorder = create<RecorderStore>((set, get) => {
     const { state, id } = get();
     if (!id || (state !== "recording" && state !== "paused")) return;
     const ms = elapsedNow(state);
-    void db.settings.put({ key: SESSION_KEY, value: { id, startedAt, mimeType, elapsedMs: ms, beat: Date.now() } satisfies Session });
+    void db.settings.put({ key: SESSION_KEY, value: { id, startedAt, mimeType, elapsedMs: ms, beat: Date.now(), title: get().title } satisfies Session });
     if (ms >= MAX_MS) void autoStop("Recordings stop at 4 hours. This one is saved.");
   };
 
@@ -222,6 +227,13 @@ export const useRecorder = create<RecorderStore>((set, get) => {
     interrupted: false,
     notice: null,
     savedId: null,
+    title: "",
+
+    setTitle: (title) => {
+      set({ title: cleanTitle(title) });
+      // Written down right away, so the name is kept even if the app closes a second later.
+      beat();
+    },
 
     start: () => {
       const s = get().state;
@@ -233,7 +245,7 @@ export const useRecorder = create<RecorderStore>((set, get) => {
       // Created inside the tap so iPhones let it run.
       ctx = newContext();
       const id = crypto.randomUUID();
-      set({ state: "starting", mode: "mic", micMissing: false, id, analyser: null, interrupted: false, notice: null, savedId: null });
+      set({ state: "starting", mode: "mic", micMissing: false, id, analyser: null, interrupted: false, notice: null, savedId: null, title: "" });
 
       navigator.mediaDevices
         .getUserMedia({
@@ -282,7 +294,7 @@ export const useRecorder = create<RecorderStore>((set, get) => {
       }
       ctx = newContext();
       const id = crypto.randomUUID();
-      set({ state: "starting", mode: "meeting", micMissing: false, id, analyser: null, interrupted: false, notice: null, savedId: null });
+      set({ state: "starting", mode: "meeting", micMissing: false, id, analyser: null, interrupted: false, notice: null, savedId: null, title: "" });
       const fail = (state: RecState) => {
         for (const media of sources) media.getTracks().forEach((t) => t.stop());
         sources = [];
@@ -412,10 +424,10 @@ export const useRecorder = create<RecorderStore>((set, get) => {
       const recordedAt = startedAt;
       teardown();
       if (blob.size > 0) {
-        await saveRecording({ id, recordedAt, durationMs, mimeType: type, blob, source: "app" });
+        await saveRecording({ id, recordedAt, durationMs, mimeType: type, blob, source: "app", title: get().title });
       }
       await clearSession(id);
-      set({ state: "idle", id: null, analyser: null, interrupted: false });
+      set({ state: "idle", id: null, analyser: null, interrupted: false, title: "" });
       return blob.size > 0 ? id : null;
     },
 
@@ -432,7 +444,7 @@ export const useRecorder = create<RecorderStore>((set, get) => {
       }
       teardown();
       if (id) await clearSession(id);
-      set({ state: "idle", id: null, analyser: null, interrupted: false });
+      set({ state: "idle", id: null, analyser: null, interrupted: false, title: "" });
     },
 
     clearNotice: () => set({ notice: null, savedId: null }),
@@ -468,6 +480,7 @@ export async function recoverInterrupted(): Promise<string | null> {
       mimeType: type,
       blob,
       source: "recovered",
+      title: s.title,
     });
   }
   await db.chunks.where("recId").equals(s.id).delete();

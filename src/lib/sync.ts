@@ -94,6 +94,7 @@ async function pass() {
   if (!session || !navigator.onLine) return;
   try {
     await uploadPending();
+    await sendNames();
     const { recordings } = await api.list();
     // Someone signed out or switched account while this pass was running.
     if (getSession()?.token !== session.token) return;
@@ -146,6 +147,8 @@ async function upload(row: RecordingRow) {
     parts,
     time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Los_Angeles",
   });
+  // The server knows the recording now, so it can take the name given while recording.
+  await sendName(row.id).catch(() => undefined);
   let sent = 0;
   for (let i = 0; i < begun.uploads.length; i++) {
     const piece = blob.slice(i * PART_BYTES, (i + 1) * PART_BYTES);
@@ -157,6 +160,38 @@ async function upload(row: RecordingRow) {
   const light = await api.uploaded(row.id);
   setProgress(row.id, null);
   await db.recordings.update(row.id, { sync: "synced", syncError: null, server: copyFrom(row.server, light) });
+}
+
+// ---------------------------------------------------------------- names
+
+/** Gives the server a name typed on this phone, then lets the server's copy take over. */
+async function sendName(id: string) {
+  const row = await db.recordings.get(id);
+  const title = row?.localTitle?.trim();
+  if (!row || !title) return;
+  const { recording } = await api.update(id, { title });
+  await db.recordings
+    .where("id")
+    .equals(id)
+    .modify((r) => {
+      // Keep a name that was changed again while this one was on its way.
+      if (r.localTitle?.trim() === title) r.localTitle = null;
+      r.server = copyFrom(r.server, recording);
+    });
+}
+
+/** Names that didn't reach the server the first time (the phone was offline, or the call failed). */
+async function sendNames() {
+  const waiting = (await db.recordings.toArray()).filter((r) => r.localTitle?.trim() && (r.sync === "synced" || r.server));
+  for (const r of waiting) {
+    try {
+      await sendName(r.id);
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : -1;
+      if (status === 401 || status === 403) throw e;
+      if (status === 0) return;
+    }
+  }
 }
 
 // ---------------------------------------------------------------- merging

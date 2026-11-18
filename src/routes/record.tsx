@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { AlertTriangle, Mic, MicOff, Pause, Play, Square, Trash2, X } from "lucide-react";
+import { AlertTriangle, Mic, MicOff, Pause, Pencil, Play, Square, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Waveform } from "@/components/Waveform";
-import { IconButton, Sheet, Spinner, SW } from "@/components/ui";
+import { IconButton, Sheet, Spinner, SW, TextSheet } from "@/components/ui";
 import { timer } from "@/lib/format";
 import { useRecorder } from "@/lib/recorder";
 
@@ -40,7 +40,9 @@ function RecordScreen() {
   const savedId = useRecorder((s) => s.savedId);
   const mode = useRecorder((s) => s.mode);
   const micMissing = useRecorder((s) => s.micMissing);
-  const { start, startMeeting, pause, resume, stop, discard, clearNotice } = useRecorder.getState();
+  const title = useRecorder((s) => s.title);
+  const { start, startMeeting, pause, resume, stop, discard, clearNotice, setTitle } = useRecorder.getState();
+  const [naming, setNaming] = useState(false);
   const meeting = mode === "meeting";
   const [closing, setClosing] = useState(false);
   const live = state === "recording" || state === "paused";
@@ -133,6 +135,17 @@ function RecordScreen() {
                       : "RECORDING"}
             </div>
             <Clock />
+            {live && (
+              <button
+                type="button"
+                onClick={() => setNaming(true)}
+                aria-label={title ? "Change the name" : "Name this recording"}
+                className="mt-6 inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-line-strong px-4 py-2 text-[15px] active:border-amber-line"
+              >
+                <Pencil size={15} strokeWidth={SW} className="shrink-0 text-ink-muted" />
+                <span className={title ? "truncate font-medium text-ink" : "text-ink-muted"}>{title || "Name this recording"}</span>
+              </button>
+            )}
             <div className="mt-9 w-full">
               <Waveform />
             </div>
@@ -190,6 +203,21 @@ function RecordScreen() {
           </div>
         </>
       )}
+
+      <TextSheet
+        open={naming}
+        onClose={() => setNaming(false)}
+        title="Name this recording"
+        label="Name"
+        initial={title}
+        placeholder="Recording"
+        hint="The recording keeps going while you type. Leave it empty and the notes pick a name."
+        submitLabel="Save"
+        onSubmit={(v) => {
+          setTitle(v);
+          setNaming(false);
+        }}
+      />
 
       <Sheet open={closing} onClose={() => setClosing(false)} title="Stop recording?">
         <div className="space-y-3 px-5 pb-2">

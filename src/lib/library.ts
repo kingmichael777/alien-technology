@@ -11,6 +11,8 @@ export async function saveRecording(r: {
   mimeType: string;
   blob: Blob;
   source: RecordingRow["source"];
+  /** The name given while it was recording, if any. */
+  title?: string;
 }) {
   await db.transaction("rw", db.recordings, db.audio, async () => {
     await db.audio.put({ id: r.id, data: r.blob });
@@ -25,11 +27,17 @@ export async function saveRecording(r: {
       syncError: null,
       source: r.source,
       server: null,
+      localTitle: cleanTitle(r.title) || null,
       detailAt: null,
       createdAt: Date.now(),
     });
   });
   kick();
+}
+
+/** A name as the server stores it: one line, at most 140 characters. */
+export function cleanTitle(title: string | null | undefined): string {
+  return (title ?? "").replace(/\s+/g, " ").trim().slice(0, 140);
 }
 
 function needServer() {
@@ -42,8 +50,14 @@ async function applyFull(full: ServerFull) {
 }
 
 export async function renameRecording(row: RecordingRow, title: string) {
+  // Not on the server yet: keep the name here. It goes up with the recording.
+  if (row.sync !== "synced" && !row.server) {
+    await db.recordings.update(row.id, { localTitle: cleanTitle(title) || null });
+    return;
+  }
   needServer();
   const { recording } = await api.update(row.id, { title: title.trim() || null });
+  await db.recordings.update(row.id, { localTitle: null });
   await applyFull(recording);
 }
 

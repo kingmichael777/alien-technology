@@ -22,7 +22,8 @@ export function fillSpeakers(text: string, names: Names | null | undefined): str
 
 export function displayTitle(row: RecordingRow): string {
   const s = row.server;
-  return s?.title?.trim() || s?.ai_title?.trim() || s?.notes?.title?.trim() || "Recording";
+  // A name typed on this phone wins until the server has it.
+  return row.localTitle?.trim() || s?.title?.trim() || s?.ai_title?.trim() || s?.notes?.title?.trim() || "Recording";
 }
 
 export function hasRealTitle(row: RecordingRow): boolean {
