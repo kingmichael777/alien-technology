@@ -3,6 +3,8 @@
 
 export const SERVER_ORIGIN = "https://nderxvalumzffjbziomd.supabase.co";
 const FUNCTION_URL = `${SERVER_ORIGIN}/functions/v1/alien-tech`;
+/** The function behind a recording's private link for Claude. */
+const SHARE_URL = `${SERVER_ORIGIN}/functions/v1/alien-share`;
 
 export type ServerStatus = "uploading" | "uploaded" | "processing" | "ready" | "failed";
 
@@ -65,6 +67,13 @@ export interface ServerFull extends ServerLight {
   time_zone: string | null;
 }
 
+/** A private link to one recording, for pasting into Claude. */
+export interface ClaudeLink {
+  url: string;
+  audio_url: string;
+  expires_at: string;
+}
+
 export class ApiError extends Error {
   /** 0 means the server could not be reached at all. */
   constructor(
@@ -114,10 +123,10 @@ export const signedIn = () => !!getSession();
 
 // ---------------------------------------------------------------- calls
 
-async function send<T>(action: string, body: Record<string, unknown>, token: string | null): Promise<T> {
+async function send<T>(action: string, body: Record<string, unknown>, token: string | null, url = FUNCTION_URL): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(FUNCTION_URL, {
+    res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(token ? { "x-alien-session": token } : {}) },
       body: JSON.stringify({ action, ...body }),
@@ -130,10 +139,10 @@ async function send<T>(action: string, body: Record<string, unknown>, token: str
   return data as T;
 }
 
-async function call<T>(action: string, body: Record<string, unknown> = {}): Promise<T> {
+async function call<T>(action: string, body: Record<string, unknown> = {}, url = FUNCTION_URL): Promise<T> {
   const session = getSession();
   if (!session) throw new ApiError(401, "Sign in on this phone first.");
-  return send<T>(action, body, session.token);
+  return send<T>(action, body, session.token, url);
 }
 
 export interface AccountInfo {
@@ -189,6 +198,9 @@ export const api = {
     call<{ recording: ServerFull }>("update", { id, ...changes }),
   audio: (id: string) => call<{ urls: string[]; mime_type: string | null }>("audio", { id }),
   remove: (id: string) => call<{ ok: true }>("delete", { id }),
+  shareOn: (id: string) => call<ClaudeLink>("share_on", { id }, SHARE_URL),
+  shareOff: (id: string) => call<{ expires_at: null }>("share_off", { id }, SHARE_URL),
+  shareStatus: (id: string) => call<{ expires_at: string | null }>("share_status", { id }, SHARE_URL),
 };
 
 /** PUT a file to a private upload link, reporting progress as bytes sent. */

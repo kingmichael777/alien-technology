@@ -40,6 +40,28 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
+/**
+ * Copies text that is still on its way from the server. iPhones only allow a
+ * copy that starts with the tap itself, so the clipboard is handed the promise
+ * right away and fills in when the text arrives.
+ */
+export async function copyWhenReady(text: Promise<string>): Promise<boolean> {
+  if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+    try {
+      const blob = text.then((t) => new Blob([t], { type: "text/plain" }));
+      await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+      return true;
+    } catch {
+      // Older browsers want the text itself: try that below.
+    }
+  }
+  try {
+    return await copyText(await text);
+  } catch {
+    return false;
+  }
+}
+
 export function downloadBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

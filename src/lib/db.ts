@@ -9,7 +9,12 @@ import type { ServerFull, ServerStatus } from "./api";
 export type LocalSync = "pending" | "synced" | "rejected";
 
 /** What this phone knows about the server copy. Transcript and notes arrive once they exist. */
-export type ServerCopy = Partial<ServerFull> & { status: ServerStatus; updated_at: string };
+export type ServerCopy = Partial<ServerFull> & {
+  status: ServerStatus;
+  updated_at: string;
+  /** When the recording's link for Claude stops working. Missing or null while it is off. */
+  shared_until?: string | null;
+};
 
 export interface RecordingRow {
   id: string;

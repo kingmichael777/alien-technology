@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { AudioLines, FileText, MoreHorizontal, Pencil, RefreshCw, Share2, Trash2 } from "lucide-react";
+import { AudioLines, Copy, FileText, Link2, Link2Off, MoreHorizontal, Pencil, RefreshCw, Send, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { AudioPlayer, usePlayer } from "@/components/AudioPlayer";
 import { StatusLine, usePhase } from "@/components/Status";
@@ -9,9 +9,30 @@ import type { Notes, Segment } from "@/lib/api";
 import type { RecordingRow } from "@/lib/db";
 import { length, longWhen, stamp } from "@/lib/format";
 import { useRecording } from "@/lib/hooks";
-import { audioBlob, deleteRecording, fetchRecording, renameRecording, renameSpeaker, rewriteNotes } from "@/lib/library";
-import { displayTitle, extensionFor, fileName, fillSpeakers, hasRealTitle, shareText, speakerName, type Names } from "@/lib/notes";
-import { shareFileOut, shareTextOut } from "@/lib/share";
+import {
+  audioBlob,
+  checkClaudeLink,
+  claudeLink,
+  claudeLinkOff,
+  claudeLinkOn,
+  deleteRecording,
+  fetchRecording,
+  renameRecording,
+  renameSpeaker,
+  rewriteNotes,
+} from "@/lib/library";
+import {
+  claudeMessage,
+  displayTitle,
+  extensionFor,
+  fileName,
+  fillSpeakers,
+  hasRealTitle,
+  shareText,
+  speakerName,
+  type Names,
+} from "@/lib/notes";
+import { copyText, copyWhenReady, shareFileOut, shareTextOut } from "@/lib/share";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/r/$id")({
@@ -68,10 +89,13 @@ function Recording({ row }: { row: RecordingRow }) {
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [sharingAudio, setSharingAudio] = useState(false);
+  const [claude, setClaude] = useState(false);
   const durationMs = (transcript?.duration ?? 0) * 1000 || row.durationMs;
   const speakers = transcript?.speakers ?? [];
   const title = displayTitle(row);
   const writingNotes = s?.status === "processing" && (s.stage === "notes" || s.stage === "queued_notes");
+  // The server has the audio, so a link to this recording has something to give.
+  const canSend = row.sync === "synced" && !!s && s.status !== "uploading";
 
   const shareNotes = async (withTranscript: boolean) => {
     setMenu(false);
@@ -141,6 +165,13 @@ function Recording({ row }: { row: RecordingRow }) {
           <AudioPlayer row={row} durationMs={durationMs} />
         </div>
 
+        {canSend && (
+          <button type="button" onClick={() => setClaude(true)} className="btn btn-ghost mt-3 h-11 w-full rounded-full px-3 text-[14px]">
+            <Send size={16} strokeWidth={SW} />
+            Send to Claude
+          </button>
+        )}
+
         {(notes || hasTranscript) && (
           <div role="tablist" className="mt-6 grid grid-cols-2 rounded-[12px] border border-line bg-surface p-1">
             {(["notes", "transcript"] as Tab[]).map((t) => (
@@ -174,6 +205,16 @@ function Recording({ row }: { row: RecordingRow }) {
       </div>
 
       <Sheet open={menu} onClose={() => setMenu(false)}>
+        <SheetRow
+          icon={<Send size={20} strokeWidth={SW} />}
+          label="Send to Claude"
+          hint="A link or the full text, ready to paste."
+          disabled={!canSend}
+          onClick={() => {
+            setMenu(false);
+            setClaude(true);
+          }}
+        />
         <SheetRow icon={<Share2 size={20} strokeWidth={SW} />} label="Share notes" disabled={!notes} onClick={() => void shareNotes(false)} />
         <SheetRow
           icon={<FileText size={20} strokeWidth={SW} />}
@@ -214,6 +255,8 @@ function Recording({ row }: { row: RecordingRow }) {
           }}
         />
       </Sheet>
+
+      <ClaudeSheet open={claude} onClose={() => setClaude(false)} row={row} />
 
       <TextSheet
         open={renaming}
@@ -270,6 +313,112 @@ function Recording({ row }: { row: RecordingRow }) {
         }}
       />
     </div>
+  );
+}
+
+/** Getting a recording into Claude: a private link it can open, or the text itself. */
+function ClaudeSheet({ open, onClose, row }: { open: boolean; onClose: () => void; row: RecordingRow }) {
+  const [busy, setBusy] = useState(false);
+  // The message to paste, shown when the phone wouldn't copy it by itself.
+  const [manual, setManual] = useState<string | null>(null);
+  const s = row.server;
+  const hasText = !!s?.notes || (s?.transcript?.segments.length ?? 0) > 0;
+  const on = claudeLinkOn(row);
+
+  useEffect(() => {
+    if (!open) setManual(null);
+    else void checkClaudeLink(row).catch(() => undefined);
+    // Only when the sheet opens or closes, not on every change to the recording.
+  }, [open]);
+
+  const copyLink = async () => {
+    if (busy) return;
+    setBusy(true);
+    setManual(null);
+    const link = claudeLink(row);
+    const message = link.then((l) => claudeMessage(row, l));
+    try {
+      const copied = await copyWhenReady(message);
+      const text = await message;
+      if (copied) {
+        toast("Copied. Paste it into Claude.");
+        onClose();
+      } else {
+        setManual(text);
+      }
+    } catch (e) {
+      say(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyAll = async () => {
+    const text = shareText(row, { transcript: true });
+    if (await copyText(text)) {
+      toast("Copied. Paste it into Claude.");
+      onClose();
+    } else {
+      setManual(text);
+    }
+  };
+
+  const turnOff = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await claudeLinkOff(row);
+      toast("The link is off.");
+      onClose();
+    } catch (e) {
+      say(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const until = s?.shared_until
+    ? new Date(s.shared_until).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
+    : "";
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Send to Claude">
+      <SheetRow
+        icon={busy ? <Spinner /> : <Link2 size={20} strokeWidth={SW} />}
+        label="Copy the link for Claude"
+        hint="Claude reads the transcript and notes from it and can download the audio. Anyone with the link can open it for 7 days."
+        disabled={busy}
+        onClick={() => void copyLink()}
+      />
+      <SheetRow
+        icon={<Copy size={20} strokeWidth={SW} />}
+        label="Copy the full text"
+        hint="The notes and the whole transcript, with no link."
+        disabled={!hasText}
+        onClick={() => void copyAll()}
+      />
+      {on && (
+        <SheetRow
+          icon={<Link2Off size={20} strokeWidth={SW} />}
+          label="Turn the link off"
+          hint={`It is on until ${until}. Turning it off stops it now.`}
+          disabled={busy}
+          onClick={() => void turnOff()}
+        />
+      )}
+      {manual !== null && (
+        <div className="border-t border-line px-5 py-4">
+          <p className="text-[13px] text-ink-muted">This phone wouldn't copy it. Press and hold the text, then choose Copy.</p>
+          <textarea
+            readOnly
+            value={manual}
+            rows={7}
+            onFocus={(e) => e.currentTarget.select()}
+            className="mt-2.5 w-full rounded-[12px] border border-line-strong bg-surface p-3 text-[13px] leading-relaxed text-ink select-text"
+          />
+        </div>
+      )}
+    </Sheet>
   );
 }
 

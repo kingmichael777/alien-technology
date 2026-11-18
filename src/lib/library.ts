@@ -1,6 +1,6 @@
 // Everything the screens can do to a recording.
 
-import { api, ApiError, signedIn, type ServerFull } from "./api";
+import { api, ApiError, signedIn, type ClaudeLink, type ServerFull } from "./api";
 import { db, type RecordingRow } from "./db";
 import { kick, storeFull } from "./sync";
 
@@ -81,6 +81,45 @@ export async function rewriteNotes(row: RecordingRow) {
   const light = await api.renote(row.id);
   if (row.server) await db.recordings.update(row.id, { server: { ...row.server, ...light } });
   kick();
+}
+
+// ---------------------------------------------------------------- the link for Claude
+
+async function rememberLink(id: string, until: string | null) {
+  await db.recordings
+    .where("id")
+    .equals(id)
+    .modify((r) => {
+      if (r.server) r.server.shared_until = until;
+    });
+}
+
+/** Turns on the recording's private link, or gives the one already on a fresh week. */
+export async function claudeLink(row: RecordingRow): Promise<ClaudeLink> {
+  needServer();
+  if (row.sync !== "synced") throw new ApiError(409, "This recording hasn't finished uploading yet.");
+  const link = await api.shareOn(row.id);
+  await rememberLink(row.id, link.expires_at);
+  return link;
+}
+
+export async function claudeLinkOff(row: RecordingRow) {
+  needServer();
+  await api.shareOff(row.id);
+  await rememberLink(row.id, null);
+}
+
+/** Asks the server whether the link is on. Another phone may have changed it. */
+export async function checkClaudeLink(row: RecordingRow) {
+  if (!signedIn() || !navigator.onLine || row.sync !== "synced") return;
+  const { expires_at } = await api.shareStatus(row.id);
+  await rememberLink(row.id, expires_at);
+}
+
+/** The link is on and hasn't run out. */
+export function claudeLinkOn(row: RecordingRow, now: number = Date.now()): boolean {
+  const until = row.server?.shared_until;
+  return !!until && Date.parse(until) > now;
 }
 
 // ---------------------------------------------------------------- adding a file

@@ -3,6 +3,7 @@ import { looksLikeEmail } from "@/lib/account";
 import type { RecordingRow, ServerCopy } from "@/lib/db";
 import { length, stamp, timer, when } from "@/lib/format";
 import {
+  claudeMessage,
   displayTitle,
   extensionFor,
   fileName,
@@ -165,5 +166,16 @@ describe("adding a file", async () => {
     expect(fileType("clip.webm", "audio/webm;codecs=opus")).toBe("audio/webm");
     expect(fileType("photo.jpg", "image/jpeg")).toBeNull();
     expect(fileType("notes.txt", "")).toBeNull();
+  });
+});
+
+describe("the message for Claude", () => {
+  it("carries the title, both links and how to read them", () => {
+    const text = claudeMessage(row(), { url: "https://alientek.org/c/abc", audio_url: "https://server.test/c/abc/audio" });
+    expect(text).toContain("Alien Technology recording: Kitchen Remodeling Quote");
+    expect(text).toContain("Transcript and notes: https://alientek.org/c/abc");
+    expect(text).toContain("Audio file: https://server.test/c/abc/audio");
+    expect(text).toContain("curl");
+    expect(text).not.toMatch(/[—*#]/);
   });
 });

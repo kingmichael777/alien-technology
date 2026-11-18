@@ -25,7 +25,8 @@ export default defineConfig({
         globIgnores: ["**/*-cyrillic-*", "**/*-cyrillic-ext-*", "**/*-greek-*", "**/*-greek-ext-*", "**/*-vietnamese-*"],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/sw\.js$/, /^\/workbox-/],
+        // /c/ links are answered by the server, never by the app.
+        navigateFallbackDenylist: [/^\/sw\.js$/, /^\/workbox-/, /^\/c\//],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,

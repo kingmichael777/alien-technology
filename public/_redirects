@@ -1,2 +1,5 @@
+# A recording's private link for Claude is answered by the server function.
+/c/*    https://nderxvalumzffjbziomd.supabase.co/functions/v1/alien-share/c/:splat   200
+
 # Single-page app: every route boots index.html, the router takes it from there.
 /*    /index.html   200

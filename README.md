@@ -15,6 +15,14 @@ Live: https://alientek.org (Netlify project `alien-technology`).
 ## Recording a Google Meet or Zoom call
 On a computer, in Chrome or Edge, **Record a Meet or Zoom call** asks the browser to share the meeting's tab with its sound (`getDisplayMedia`), mixes that with the microphone in one audio track, and records the mix like any other recording. The tab's picture is requested because browsers won't share sound without it; it is never recorded. The recording ends when the tab stops being shared. Phones can't do this (no browser there can share another app's sound), and neither can Safari. The app does not announce the recording to the other people on the call.
 
+## Sending a recording to Claude
+**Send to Claude** on a recording copies a short message with two links, ready to paste into Claude or Claude Code:
+
+- `https://alientek.org/c/<key>` returns the recording as plain text: title, date, speakers, notes and the whole transcript with times. Netlify passes `/c/*` to the `alien-share` function.
+- `.../functions/v1/alien-share/c/<key>/audio` downloads the audio file.
+
+Nobody signs in to open them, so anyone holding the link can read that one recording. The key is the recording's id plus a proof made with the service key from a random value on the row (`share_nonce`), so it can't be guessed and one recording's link never opens another. A link works for 7 days (`share_expires_at`); copying it again gives the same link a fresh week. **Turn the link off** clears the value, which ends the link for good. A link also stops when its owner's account is paused or removed. **Copy the full text** puts the notes and transcript on the clipboard with no link at all.
+
 ## Pieces
 - `src/` the app: React 19, TypeScript, Vite, Tailwind v4, TanStack Router, Dexie, Zustand. Installable PWA that opens and records offline.
   - `lib/recorder.ts` microphone, meeting tab plus microphone, recording, crash recovery
@@ -27,6 +35,9 @@ On a computer, in Chrome or Edge, **Record a Meet or Zoom call** asks the browse
   - `index.ts` actions: auth_config, auth_google, auth_start, auth_verify, sign_out, ping, begin, uploaded, process, renote, list, get, get_many, update, audio, delete, accounts_list, account_add, account_update, account_remove
   - `accounts.ts` sign-in codes, sessions and the master's account tools; `google.ts` checks Google ID tokens
   - `ai.ts` ElevenLabs and OpenAI calls; `store.ts` database and storage; `lib.ts` pure shaping helpers (tested in `lib_test.ts`)
+- `supabase/functions/alien-share/` the link for Claude (Deno), on the same project and tables. Its own function so the recorder's function is never touched by it.
+  - `index.ts` actions: share_on, share_off, share_status (each needs the phone's session), and GET `/c/<key>` and `/c/<key>/audio` (no session)
+  - `lib.ts` the link key and the plain-text page (tested in `lib_test.ts`)
 - Database: table `public.alien_recordings` (row level security on, no policies: only the function's service role reads or writes it) and the private bucket `alien-recordings`.
 
 ## Accounts
@@ -49,6 +60,6 @@ npm run dev        # local development
 npm test           # unit tests
 npm run build      # typecheck and production build into dist/
 ```
-Server function tests: `deno test supabase/functions/alien-tech/lib_test.ts`.
+Server function tests: `deno test supabase/functions/alien-tech/lib_test.ts supabase/functions/alien-share/lib_test.ts`.
 
-The app deploys to Netlify (`npm run build`, publish `dist`). The Netlify project is not linked to this repository: a push to `main` publishes nothing. Each release is uploaded from a checkout of `main` and built by Netlify. The function deploys to Supabase with JWT verification off (it checks the session itself).
+The app deploys to Netlify (`npm run build`, publish `dist`). The Netlify project is not linked to this repository: a push to `main` publishes nothing. Each release is uploaded from a checkout of `main` and built by Netlify. Both functions deploy to Supabase with JWT verification off (they check the session themselves).

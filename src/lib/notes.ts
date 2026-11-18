@@ -163,6 +163,19 @@ export function shareText(row: RecordingRow, opts: { transcript: boolean }): str
   return [head.join("\n"), ...body].join("\n\n").trim() + "\n";
 }
 
+/** What gets pasted into Claude: the two links and how to use them. */
+export function claudeMessage(row: RecordingRow, link: { url: string; audio_url: string }): string {
+  return [
+    `Alien Technology recording: ${displayTitle(row)}`,
+    `${longWhen(row.recordedAt)} · ${length(row.durationMs)}`,
+    "",
+    `Transcript and notes: ${link.url}`,
+    `Audio file: ${link.audio_url}`,
+    "",
+    "Read the first link with curl so you get every word. Download the audio from the second link if you need the file.",
+  ].join("\n");
+}
+
 export function fileName(row: RecordingRow, ext: string): string {
   const d = new Date(row.recordedAt);
   const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
